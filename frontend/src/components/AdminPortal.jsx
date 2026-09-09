@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config';
 ﻿import React, { useState, useEffect } from 'react';
 import IngestCourseView from './IngestCourseView';
 
@@ -40,7 +41,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/courses?admin=true', {
+      const res = await fetch(`${API_BASE_URL}/api/courses?admin=true`, {
         headers: { 'Authorization': `Bearer ${adminToken}` }
       });
       const data = await res.json();
@@ -54,7 +55,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
 
   const fetchAdminList = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/admin/list', { headers: authHeaders });
+      const res = await fetch(`${API_BASE_URL}/api/admin/list`, { headers: authHeaders });
       const data = await res.json();
       if (data.success) setAdminList(data.admins || []);
     } catch (err) {
@@ -64,7 +65,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
 
   const fetchDbStats = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/admin/stats', { headers: authHeaders });
+      const res = await fetch(`${API_BASE_URL}/api/admin/stats`, { headers: authHeaders });
       const data = await res.json();
       if (data.success) setDbStats(data.stats);
     } catch (err) {
@@ -75,7 +76,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
   const handleStartEdit = async (courseId) => {
     setError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/courses/${courseId}`, { headers: authHeaders });
+      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}`, { headers: authHeaders });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch course');
 
@@ -97,7 +98,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
     setError('');
     setSuccessMessage('');
     try {
-      const res = await fetch(`http://localhost:3001/api/admin/courses/${editingCourse.courseId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/courses/${editingCourse.courseId}`, {
         method: 'PUT',
         headers: authHeaders,
         body: JSON.stringify({
@@ -122,7 +123,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
   const handleDeleteCourse = async (courseId) => {
     if (!window.confirm(`Delete course ${courseId}?`)) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/courses/${courseId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}`, {
         method: 'DELETE',
         headers: authHeaders
       });
@@ -141,7 +142,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
     setError('');
     setSuccessMessage('');
     try {
-      const res = await fetch('http://localhost:3001/api/admin/profile', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/profile`, {
         method: 'PUT',
         headers: authHeaders,
         body: JSON.stringify({ email: myEmail, password: newPassword })
@@ -163,7 +164,7 @@ const AdminPortal = ({ adminUser, adminToken, onLogout }) => {
     setError('');
     setSuccessMessage('');
     try {
-      const res = await fetch('http://localhost:3001/api/admin/create-admin', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/create-admin`, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({

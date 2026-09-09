@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config';
 ﻿import React, { useState } from 'react';
 
 const PhoneAuthModal = ({ isOpen, onClose, onLoginSuccess, currentUser }) => {
@@ -28,7 +29,7 @@ const PhoneAuthModal = ({ isOpen, onClose, onLoginSuccess, currentUser }) => {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:3001/api/auth/login', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

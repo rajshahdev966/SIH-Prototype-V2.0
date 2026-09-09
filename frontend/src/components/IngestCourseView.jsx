@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config';
 ﻿import React, { useState } from 'react';
 
 const SAMPLE_COURSES = [
@@ -36,7 +37,7 @@ const IngestCourseView = ({ adminToken, onCourseIngested, onBackToCatalog }) => 
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('http://localhost:3001/api/courses/ingest', {
+      const res = await fetch(`${API_BASE_URL}/api/courses/ingest`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ courseId: courseId.trim() })

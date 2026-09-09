@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config';
 ﻿import React, { useEffect, useState } from 'react';
 
 const SubmissionsHistory = ({ courseId, onSelectSubmission, onBackToCatalog }) => {
@@ -14,8 +15,8 @@ const SubmissionsHistory = ({ courseId, onSelectSubmission, onBackToCatalog }) =
     setError('');
     try {
       const url = courseId 
-        ? `http://localhost:3001/api/courses/${courseId}/submissions`
-        : `http://localhost:3001/api/courses/all/submissions`;
+        ? `${API_BASE_URL}/api/courses/${courseId}/submissions`
+        : `${API_BASE_URL}/api/courses/all/submissions`;
       const res = await fetch(url);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to load submissions');

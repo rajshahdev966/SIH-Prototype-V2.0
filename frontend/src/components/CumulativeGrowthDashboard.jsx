@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config';
 ﻿import React, { useState, useEffect } from 'react';
 
 const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBackToCatalog }) => {
@@ -16,7 +17,7 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/user/${encodeURIComponent(currentUser.phone)}/profile`);
+      const res = await fetch(`${API_BASE_URL}/api/user/${encodeURIComponent(currentUser.phone)}/profile`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to load profile');
       setProfileData(data);
@@ -31,7 +32,7 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
     setAnalyzing(true);
     setError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/user/${encodeURIComponent(currentUser.phone)}/cumulative-analysis`, {
+      const res = await fetch(`${API_BASE_URL}/api/user/${encodeURIComponent(currentUser.phone)}/cumulative-analysis`, {
         method: 'POST'
       });
       const data = await res.json();

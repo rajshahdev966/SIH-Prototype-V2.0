@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './config';
 ﻿import React, { useState, useEffect } from 'react';
 import CourseCatalog from './components/CourseCatalog';
 import CourseSummaryReader from './components/CourseSummaryReader';
@@ -63,7 +64,7 @@ function App() {
 
   const fetchPublishedCourses = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/courses');
+      const res = await fetch(`${API_BASE_URL}/api/courses`);
       const data = await res.json();
       if (data.success) {
         setCourses(data.courses || []);
@@ -76,7 +77,7 @@ function App() {
   const handleOpenCourseReader = async (courseId) => {
     setError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/courses/${courseId}`);
+      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch course');
 
@@ -95,7 +96,7 @@ function App() {
 
     setError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/courses/${courseId}`);
+      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch course');
 
@@ -111,7 +112,7 @@ function App() {
     setError('');
 
     try {
-      const res = await fetch(`http://localhost:3001/api/courses/${activeCourse.courseId}/submit`, {
+      const res = await fetch(`${API_BASE_URL}/api/courses/${activeCourse.courseId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
