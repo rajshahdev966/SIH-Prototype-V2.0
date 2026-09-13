@@ -32,7 +32,7 @@ Return your entire response as a single valid JSON object following this exact s
 
 // Deterministic heuristic fallback in case of API rate-limiting or network outage
 function generateAlgorithmicCumulativeProfile(submissions, user) {
-    const totalTests = submissions.length;
+    const totalTests = submissions.length; 
     if (totalTests === 0) {
         return {
             longitudinal_proficiency: 'Emerging Talent',
