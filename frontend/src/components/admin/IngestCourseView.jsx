@@ -1,5 +1,6 @@
-import { API_BASE_URL } from '../config';
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
+import { RiAlertLine, RiCheckLine, RiCheckboxCircleLine } from '@remixicon/react';
+import { API_BASE_URL } from '../../config';
 
 const SAMPLE_COURSES = [
   { id: 'do_1143052789530787841562', label: 'Agile & Scrum Course (do_114305...)' },
@@ -125,7 +126,7 @@ const IngestCourseView = ({ adminToken, onCourseIngested, onBackToCatalog }) => 
 
         {error && (
           <div className="mt-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg flex items-start gap-3">
-            <span className="text-red-500 text-base">⚠️</span>
+            <RiAlertLine size={18} className="text-red-500 shrink-0 mt-0.5" />
             <div>
               <strong className="font-semibold">Ingestion Failed:</strong> {error}
             </div>
@@ -143,28 +144,28 @@ const IngestCourseView = ({ adminToken, onCourseIngested, onBackToCatalog }) => 
           <div className="space-y-3">
             <div className={`flex items-center gap-3 p-3 rounded-lg text-sm ${currentStep >= 1 ? 'bg-blue-50 text-blue-900 border border-blue-100' : 'text-gray-400'}`}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border border-current">
-                {currentStep > 1 ? '✓' : '1'}
+                {currentStep > 1 ? <RiCheckLine size={14} /> : '1'}
               </span>
               <span>Checking database cache for course metadata...</span>
             </div>
 
             <div className={`flex items-center gap-3 p-3 rounded-lg text-sm ${currentStep >= 2 ? 'bg-blue-50 text-blue-900 border border-blue-100' : 'text-gray-400'}`}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border border-current">
-                {currentStep > 2 ? '✓' : '2'}
+                {currentStep > 2 ? <RiCheckLine size={14} /> : '2'}
               </span>
               <span><strong>Browser Extraction Agent:</strong> Downloading media assets, transcribing audio and PDFs...</span>
             </div>
 
             <div className={`flex items-center gap-3 p-3 rounded-lg text-sm ${currentStep >= 3 ? 'bg-blue-50 text-blue-900 border border-blue-100' : 'text-gray-400'}`}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border border-current">
-                {currentStep > 3 ? '✓' : '3'}
+                {currentStep > 3 ? <RiCheckLine size={14} /> : '3'}
               </span>
               <span>Synthesizing comprehensive Structured Learning Document...</span>
             </div>
 
             <div className={`flex items-center gap-3 p-3 rounded-lg text-sm ${currentStep >= 4 ? 'bg-blue-50 text-blue-900 border border-blue-100' : 'text-gray-400'}`}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border border-current">
-                {currentStep > 4 ? '✓' : '4'}
+                {currentStep > 4 ? <RiCheckLine size={14} /> : '4'}
               </span>
               <span><strong>MCQ Generation Agent:</strong> Generating 15 rigorous theoretical & scenario questions...</span>
             </div>
@@ -176,7 +177,7 @@ const IngestCourseView = ({ adminToken, onCourseIngested, onBackToCatalog }) => 
       {ingestResult && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-6 shadow-sm">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">🎉</span>
+            <RiCheckboxCircleLine size={24} className="text-green-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-bold text-green-900 text-base">
                 {ingestResult.cached ? 'Loaded from Database Cache' : 'Course Ingested Successfully!'}

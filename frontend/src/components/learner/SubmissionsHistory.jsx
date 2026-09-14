@@ -1,5 +1,6 @@
-import { API_BASE_URL } from '../config';
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { RiBarChartBoxLine } from '@remixicon/react';
+import { API_BASE_URL } from '../../config';
 
 const SubmissionsHistory = ({ courseId, onSelectSubmission, onBackToCatalog }) => {
   const [submissions, setSubmissions] = useState([]);
@@ -69,7 +70,9 @@ const SubmissionsHistory = ({ courseId, onSelectSubmission, onBackToCatalog }) =
         </div>
       ) : submissions.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
-          <div className="text-3xl mb-3">📊</div>
+          <div className="flex justify-center mb-3 text-slate-400">
+            <RiBarChartBoxLine size={36} />
+          </div>
           <h3 className="text-base font-bold text-gray-800 mb-1">No Submissions Found</h3>
           <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4">
             Once a learner completes the 15-question quiz, their score and AI Competency Profile are permanently stored here.

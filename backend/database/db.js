@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
@@ -92,6 +92,20 @@ function initDb() {
             FOREIGN KEY (phone) REFERENCES users (phone) ON DELETE CASCADE
         );
 
+        -- Case Studies Table (Amrit Gyaan Kosh)
+        CREATE TABLE IF NOT EXISTS case_studies (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            author TEXT DEFAULT 'Capacity Building Commission',
+            categories_json TEXT,
+            duration TEXT DEFAULT '1h',
+            summary TEXT,
+            lessons_json TEXT,
+            status TEXT DEFAULT 'published',
+            created_at TEXT,
+            updated_at TEXT
+        );
+
         -- Indices
         CREATE INDEX IF NOT EXISTS idx_submissions_course ON submissions(course_id);
         CREATE INDEX IF NOT EXISTS idx_submissions_phone ON submissions(phone);
@@ -107,6 +121,15 @@ function initDb() {
         if (!courseCols.includes('status')) {
             db.exec("ALTER TABLE courses ADD COLUMN status TEXT DEFAULT 'published';");
         }
+        if (!courseCols.includes('author')) {
+            db.exec("ALTER TABLE courses ADD COLUMN author TEXT DEFAULT 'Karmayogi Bharat';");
+        }
+        if (!courseCols.includes('category')) {
+            db.exec("ALTER TABLE courses ADD COLUMN category TEXT DEFAULT 'Course';");
+        }
+        if (!courseCols.includes('duration')) {
+            db.exec("ALTER TABLE courses ADD COLUMN duration TEXT DEFAULT '30m';");
+        }
     } catch (migErr) {
         console.warn('Migration note:', migErr.message);
     }
@@ -121,6 +144,80 @@ function initDb() {
         db.prepare('INSERT INTO admins (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)')
           .run(initialUser, initialEmail, initialPassHash, new Date().toISOString());
         console.log('[Security] Initial root admin initialized from environment: username=' + initialUser);
+    }
+
+    // Seed Initial Amrit Gyaan Kosh Case Studies if none exist
+    const caseCount = db.prepare('SELECT COUNT(*) as count FROM case_studies').get().count;
+    if (caseCount === 0) {
+        const initialCaseStudies = [
+            {
+                id: 'cs_gail_revival',
+                title: "Turning Around a Stranded Asset : GAIL's Revival of the JBF PTA Plant",
+                author: "Capacity Building Commission",
+                categories_json: JSON.stringify(["Commerce and Industries"]),
+                duration: "1h",
+                summary: "A detailed governance case study exploring how public sector leadership, strategic restructuring, and inter-ministerial coordination revived the stranded JBF PTA petrochemical facility under GAIL.",
+                lessons_json: JSON.stringify([
+                    "Asset turnaround via public sector strategic intervention",
+                    "Regulatory approvals and inter-departmental synergy",
+                    "Safeguarding industrial employment and sovereign value creation"
+                ]),
+                status: 'published'
+            },
+            {
+                id: 'cs_assam_forest',
+                title: "Forest Landscapes of Assam: Forging Livelihoods and Natural Wealth",
+                author: "Capacity Building Commission",
+                categories_json: JSON.stringify(["Environment", "Agriculture and Natural Resources"]),
+                duration: "1h 30m",
+                summary: "An in-depth study of community-centric afforestation, non-timber forest produce (NTFP) value chains, and eco-tourism livelihoods across the Brahmaputra valley.",
+                lessons_json: JSON.stringify([
+                    "Co-management models with indigenous forest dwelling communities",
+                    "Sustainable harvest standards and direct market linkages",
+                    "Biodiversity preservation coupled with rural prosperity"
+                ]),
+                status: 'published'
+            },
+            {
+                id: 'cs_karnataka_urban',
+                title: "Digital Shift in Urban Accounting : Karnataka's Municipal Finance",
+                author: "Capacity Building Commission",
+                categories_json: JSON.stringify(["Science, Technology, and Innovation", "Governance"]),
+                duration: "2h",
+                summary: "Analyzing Karnataka's pioneering double-entry digital accounting transformation across Urban Local Bodies (ULBs) for transparent fund tracking and credit rating readiness.",
+                lessons_json: JSON.stringify([
+                    "Transitioning ULBs from cash-basis to accrual accounting systems",
+                    "Real-time municipal dashboard deployment and audit trail automation",
+                    "Unlocking municipal bond issuances and infrastructure investments"
+                ]),
+                status: 'published'
+            },
+            {
+                id: 'cs_malapur_transformation',
+                title: "From Darkness to Dignity: Transformation of Malapur",
+                author: "Capacity Building Commission",
+                categories_json: JSON.stringify(["Governance", "Governance and Public Administration"]),
+                duration: "1h",
+                summary: "Field-level administrative leadership transforming an underserved hamlet through integrated water supply, sanitation saturation, and solar electrification.",
+                lessons_json: JSON.stringify([
+                    "Gram Panchayat saturation drives through district convergence",
+                    "Grassroots social audits and behavioral nudges",
+                    "Monitoring public infrastructure lifecycle sustainability"
+                ]),
+                status: 'published'
+            }
+        ];
+
+        const insertCase = db.prepare(`
+            INSERT INTO case_studies (id, title, author, categories_json, duration, summary, lessons_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        const now = new Date().toISOString();
+        for (const cs of initialCaseStudies) {
+            insertCase.run(cs.id, cs.title, cs.author, cs.categories_json, cs.duration, cs.summary, cs.lessons_json, cs.status, now, now);
+        }
+        console.log('[Database] Seeded 4 initial Amrit Gyaan Kosh case studies.');
     }
 }
 
@@ -254,6 +351,9 @@ function getCourse(courseId) {
     return {
         courseId: row.course_id,
         title: row.title,
+        author: row.author || 'Karmayogi Bharat',
+        category: row.category || 'Course',
+        duration: row.duration || '30m',
         masterSummary: row.master_summary,
         status: row.status || 'published',
         createdAt: row.created_at,
@@ -266,6 +366,9 @@ function getAllCourses(includeUnpublished = false) {
         SELECT 
             c.course_id,
             c.title,
+            c.author,
+            c.category,
+            c.duration,
             c.status,
             c.created_at,
             c.updated_at,
@@ -284,6 +387,9 @@ function getAllCourses(includeUnpublished = false) {
     return rows.map(r => ({
         courseId: r.course_id,
         title: r.title || r.course_id,
+        author: r.author || 'Karmayogi Bharat',
+        category: r.category || 'Course',
+        duration: r.duration || (r.mcq_count ? `${r.mcq_count * 2}m` : '30m'),
         status: r.status || 'published',
         mcqCount: r.mcq_count || 0,
         hasMCQs: (r.mcq_count || 0) > 0,
@@ -294,32 +400,51 @@ function getAllCourses(includeUnpublished = false) {
     }));
 }
 
-function saveCourse({ courseId, title, masterSummary, status = 'published' }) {
+function saveCourse({ courseId, title, author = 'Karmayogi Bharat', category = 'Course', duration = '30m', masterSummary, status = 'published' }) {
     const now = new Date().toISOString();
     const existing = getCourse(courseId);
     if (existing) {
         db.prepare(`
             UPDATE courses 
-            SET title = ?, master_summary = ?, status = ?, updated_at = ?
+            SET title = ?, author = ?, category = ?, duration = ?, master_summary = ?, status = ?, updated_at = ?
             WHERE course_id = ?
-        `).run(title || existing.title || courseId, masterSummary, status, now, courseId);
+        `).run(
+            title || existing.title || courseId,
+            author || existing.author || 'Karmayogi Bharat',
+            category || existing.category || 'Course',
+            duration || existing.duration || '30m',
+            masterSummary !== undefined ? masterSummary : (existing.masterSummary || ''),
+            status || existing.status || 'published',
+            now,
+            courseId
+        );
     } else {
         db.prepare(`
-            INSERT INTO courses (course_id, title, master_summary, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(courseId, title || courseId, masterSummary, status, now, now);
+            INSERT INTO courses (course_id, title, author, category, duration, master_summary, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(courseId, title || courseId, author, category, duration, masterSummary || '', status, now, now);
     }
     return getCourse(courseId);
 }
 
-function updateCourseAndMCQs(courseId, { title, masterSummary, mcqs, status = 'published' }) {
+function updateCourseAndMCQs(courseId, { title, author, category, duration, masterSummary, mcqs, status = 'published' }) {
     const now = new Date().toISOString();
+    const existing = getCourse(courseId);
     db.transaction(() => {
         db.prepare(`
             UPDATE courses 
-            SET title = ?, master_summary = ?, status = ?, updated_at = ?
+            SET title = ?, author = ?, category = ?, duration = ?, master_summary = ?, status = ?, updated_at = ?
             WHERE course_id = ?
-        `).run(title, masterSummary, status, now, courseId);
+        `).run(
+            title !== undefined ? title : (existing?.title || courseId),
+            author !== undefined ? author : (existing?.author || 'Karmayogi Bharat'),
+            category !== undefined ? category : (existing?.category || 'Course'),
+            duration !== undefined ? duration : (existing?.duration || '30m'),
+            masterSummary !== undefined ? masterSummary : (existing?.masterSummary || ''),
+            status || 'published',
+            now,
+            courseId
+        );
 
         if (Array.isArray(mcqs)) {
             saveMCQs(courseId, mcqs);
@@ -468,10 +593,115 @@ function deleteCourse(courseId) {
     return result.changes > 0;
 }
 
+// ==========================================
+// Case Studies Management (Amrit Gyaan Kosh)
+// ==========================================
+
+function getAllCaseStudies(includeUnpublished = false) {
+    let sql = 'SELECT * FROM case_studies';
+    if (!includeUnpublished) {
+        sql += " WHERE status = 'published' OR status IS NULL";
+    }
+    sql += ' ORDER BY created_at DESC';
+    const rows = db.prepare(sql).all();
+    return rows.map(r => ({
+        id: r.id,
+        title: r.title,
+        author: r.author || 'Capacity Building Commission',
+        categories: r.categories_json ? JSON.parse(r.categories_json) : ['Governance'],
+        duration: r.duration || '1h',
+        summary: r.summary || '',
+        lessons: r.lessons_json ? JSON.parse(r.lessons_json) : [],
+        status: r.status || 'published',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+    }));
+}
+
+function getCaseStudy(id) {
+    const r = db.prepare('SELECT * FROM case_studies WHERE id = ?').get(id);
+    if (!r) return null;
+    return {
+        id: r.id,
+        title: r.title,
+        author: r.author || 'Capacity Building Commission',
+        categories: r.categories_json ? JSON.parse(r.categories_json) : ['Governance'],
+        duration: r.duration || '1h',
+        summary: r.summary || '',
+        lessons: r.lessons_json ? JSON.parse(r.lessons_json) : [],
+        status: r.status || 'published',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+    };
+}
+
+function saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status = 'published' }) {
+    const now = new Date().toISOString();
+    const caseId = id ? id.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_') : 'cs_' + Date.now();
+    
+    let categoriesArray = ['Governance'];
+    if (Array.isArray(categories)) {
+        categoriesArray = categories;
+    } else if (typeof categories === 'string' && categories.trim()) {
+        categoriesArray = categories.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    const categoriesJson = JSON.stringify(categoriesArray.length > 0 ? categoriesArray : ['Governance']);
+
+    let lessonsArray = [];
+    if (Array.isArray(lessons)) {
+        lessonsArray = lessons;
+    } else if (typeof lessons === 'string' && lessons.trim()) {
+        lessonsArray = lessons.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+    const lessonsJson = JSON.stringify(lessonsArray);
+
+    const existing = getCaseStudy(caseId);
+    if (existing) {
+        db.prepare(`
+            UPDATE case_studies 
+            SET title = ?, author = ?, categories_json = ?, duration = ?, summary = ?, lessons_json = ?, status = ?, updated_at = ?
+            WHERE id = ?
+        `).run(
+            title || existing.title,
+            author || existing.author || 'Capacity Building Commission',
+            categoriesJson,
+            duration || existing.duration || '1h',
+            summary !== undefined ? summary : existing.summary,
+            lessonsJson,
+            status || existing.status || 'published',
+            now,
+            caseId
+        );
+    } else {
+        db.prepare(`
+            INSERT INTO case_studies (id, title, author, categories_json, duration, summary, lessons_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            caseId,
+            title || 'Untitled Case Study',
+            author || 'Capacity Building Commission',
+            categoriesJson,
+            duration || '1h',
+            summary || '',
+            lessonsJson,
+            status || 'published',
+            now,
+            now
+        );
+    }
+    return getCaseStudy(caseId);
+}
+
+function deleteCaseStudy(id) {
+    const res = db.prepare('DELETE FROM case_studies WHERE id = ?').run(id);
+    return res.changes > 0;
+}
+
 // Database stats for Admin Dashboard
 function getDatabaseStats() {
     return {
         coursesCount: db.prepare('SELECT COUNT(*) as c FROM courses').get().c,
+        caseStudiesCount: db.prepare('SELECT COUNT(*) as c FROM case_studies').get().c,
         mcqsCount: db.prepare('SELECT COUNT(*) as c FROM mcqs').get().c,
         submissionsCount: db.prepare('SELECT COUNT(*) as c FROM submissions').get().c,
         usersCount: db.prepare('SELECT COUNT(*) as c FROM users').get().c,
@@ -503,5 +733,9 @@ module.exports = {
     saveCumulativeAnalysis,
     getCumulativeAnalysis,
     deleteCourse,
+    getAllCaseStudies,
+    getCaseStudy,
+    saveCaseStudy,
+    deleteCaseStudy,
     getDatabaseStats
 };

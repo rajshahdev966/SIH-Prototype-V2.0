@@ -1,5 +1,12 @@
-﻿import React from 'react';
+import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import {
+  RiCheckLine,
+  RiTimeLine,
+  RiStarLine,
+  RiFocus3Line,
+  RiFileList3Line
+} from '@remixicon/react';
 
 const AnalysisDashboard = ({ profile, submission, onRetake, onBackToCatalog, onViewHistory }) => {
   if (!profile) return null;
@@ -46,7 +53,13 @@ const AnalysisDashboard = ({ profile, submission, onRetake, onBackToCatalog, onV
       <div className={`p-6 rounded-xl border-2 text-center shadow-sm ${style.card}`}>
         <div className="flex items-center justify-between text-xs font-semibold opacity-75 mb-2">
           <span>Learner: {submission?.learnerName || 'Candidate'}</span>
-          <span>Database Record: {submission?.id ? 'Saved ✓' : 'Generated'}</span>
+          <span className="flex items-center gap-1">
+            Database Record: {submission?.id ? (
+              <span className="text-emerald-700 font-bold flex items-center gap-0.5">
+                <RiCheckLine size={13} /> Saved
+              </span>
+            ) : 'Generated'}
+          </span>
         </div>
         <h3 className="text-xs uppercase tracking-widest font-bold opacity-75">
           AI Evaluated Competency Profile
@@ -90,7 +103,8 @@ const AnalysisDashboard = ({ profile, submission, onRetake, onBackToCatalog, onV
         <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm flex flex-col justify-between">
           <div>
             <h4 className="font-bold text-gray-800 text-sm mb-3 border-b pb-2 flex items-center gap-2">
-              <span>⏱️</span> Time Management Analysis
+              <RiTimeLine size={16} className="text-blue-600" />
+              <span>Time Management Analysis</span>
             </h4>
             <p className="text-xs text-gray-600 leading-relaxed">
               {profile.time_management_analysis}
@@ -106,13 +120,14 @@ const AnalysisDashboard = ({ profile, submission, onRetake, onBackToCatalog, onV
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-5 border border-green-200 rounded-xl shadow-sm">
           <h4 className="font-bold text-green-800 text-sm mb-3 flex items-center gap-2 border-b border-green-100 pb-2">
-            <span>✨</span> Core Strengths
+            <RiStarLine size={16} className="text-green-600" />
+            <span>Core Strengths</span>
           </h4>
           {profile.strengths && profile.strengths.length > 0 ? (
             <ul className="space-y-1.5 text-xs text-gray-700">
               {profile.strengths.map((s, i) => (
                 <li key={i} className="flex items-start gap-2">
-                  <span className="text-green-600 font-bold">✓</span>
+                  <RiCheckLine size={14} className="text-green-600 shrink-0 mt-0.5" />
                   <span>{s}</span>
                 </li>
               ))}
@@ -124,7 +139,8 @@ const AnalysisDashboard = ({ profile, submission, onRetake, onBackToCatalog, onV
 
         <div className="bg-white p-5 border border-amber-200 rounded-xl shadow-sm">
           <h4 className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2 border-b border-amber-100 pb-2">
-            <span>🎯</span> Targeted Knowledge Gaps
+            <RiFocus3Line size={16} className="text-amber-600" />
+            <span>Targeted Knowledge Gaps</span>
           </h4>
           {profile.knowledge_gaps && profile.knowledge_gaps.length > 0 ? (
             <ul className="space-y-1.5 text-xs text-gray-700">
@@ -144,7 +160,8 @@ const AnalysisDashboard = ({ profile, submission, onRetake, onBackToCatalog, onV
       {/* Remediation Plan */}
       <div className="bg-indigo-50 border border-indigo-200 p-6 rounded-xl shadow-sm">
         <h4 className="font-bold text-indigo-900 text-sm mb-2 flex items-center gap-2">
-          <span>📋</span> AI Recommended Remediation & Study Roadmap
+          <RiFileList3Line size={18} className="text-indigo-600" />
+          <span>AI Recommended Remediation & Study Roadmap</span>
         </h4>
         <p className="text-indigo-900 text-xs leading-relaxed">
           {profile.remediation_plan}

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from '../../config';
 ﻿import React, { useState } from 'react';
 
 const PhoneAuthModal = ({ isOpen, onClose, onLoginSuccess, currentUser }) => {

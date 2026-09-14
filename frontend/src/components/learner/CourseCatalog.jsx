@@ -1,4 +1,5 @@
-﻿import React from 'react';
+import React from 'react';
+import { RiBookOpenLine } from '@remixicon/react';
 
 const CourseCatalog = ({ courses, onReadSummary, onTakeQuiz, onViewCourseHistory, onSwitchToAdmin }) => {
   return (
@@ -24,8 +25,8 @@ const CourseCatalog = ({ courses, onReadSummary, onTakeQuiz, onViewCourseHistory
 
       {(!courses || courses.length === 0) ? (
         <div className="bg-white rounded-3xl border border-dashed border-gray-300 p-12 text-center">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl shadow-xs">
-            📚
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xs">
+            <RiBookOpenLine size={32} />
           </div>
           <h3 className="text-lg font-bold text-gray-800 mb-1">No Courses Published Yet</h3>
           <p className="text-xs text-gray-500 max-w-md mx-auto mb-6">
@@ -78,7 +79,7 @@ const CourseCatalog = ({ courses, onReadSummary, onTakeQuiz, onViewCourseHistory
                   onClick={() => onReadSummary(course.courseId)}
                   className="text-xs text-gray-700 hover:text-blue-600 font-semibold py-2 px-3 rounded-lg hover:bg-white border border-gray-200 transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>📖</span>
+                  <RiBookOpenLine size={14} />
                   <span>Read Summary</span>
                 </button>
                 <button

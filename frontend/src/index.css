@@ -1,1 +1,93 @@
 @import "tailwindcss";
+
+@theme {
+  --color-karmayogi-orange: #F37023;
+  --color-karmayogi-orange-hover: #D95B12;
+  --color-karmayogi-orange-light: #FFF3EB;
+  --color-karmayogi-gold: #F59E0B;
+  
+  --color-karmayogi-navy-dark: #0A387E;
+  --color-karmayogi-navy: #0B5C9E;
+  --color-karmayogi-navy-light: #0073BC;
+  --color-karmayogi-navy-tint: #EBF5FF;
+
+  --color-karmayogi-sand: #FFF8F1;
+  --color-karmayogi-sand-dark: #FDF5EC;
+
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-hindi: 'Noto Sans Devanagari', 'Hind', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  --brand-orange-500: #F37023;
+  --brand-orange-600: #D95B12;
+  --brand-orange-100: #FFF3EB;
+  --brand-gold-500: #F59E0B;
+  --navy-950: #071E3D;
+  --navy-900: #0A387E;
+  --navy-800: #0B5C9E;
+  --navy-700: #0073BC;
+  --navy-100: #EBF5FF;
+  --bg-sand: #FFF8F1;
+  --bg-pattern: #FDF5EC;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #FAFAFA;
+  color: #1E293B;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar for Authentic Government Portal */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Roll-up Text Ticker Animations */
+@keyframes rollUpOut {
+  0% {
+    transform: translateY(0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+}
+
+@keyframes rollUpIn {
+  0% {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 1;
+  }
+}
+
+.animate-roll-up-out {
+  animation: rollUpOut 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-roll-up-in {
+  animation: rollUpIn 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

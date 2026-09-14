@@ -1,21 +1,474 @@
-import { API_BASE_URL } from './config';
-﻿import React, { useState, useEffect } from 'react';
-import CourseCatalog from './components/CourseCatalog';
-import CourseSummaryReader from './components/CourseSummaryReader';
-import Quiz from './components/Quiz';
-import AnalysisDashboard from './components/AnalysisDashboard';
-import CumulativeGrowthDashboard from './components/CumulativeGrowthDashboard';
-import PhoneAuthModal from './components/PhoneAuthModal';
-import AdminLogin from './components/AdminLogin';
-import AdminPortal from './components/AdminPortal';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams, Outlet } from 'react-router-dom';
+import { RiAlertLine } from '@remixicon/react';
+import { coursesApi, caseStudiesApi } from './api';
+import {
+  Navbar,
+  HeroSection,
+  MetricStatsBar,
+  NationalGovernanceGrid,
+  ShowcasedCoursesSection,
+  CaseStudiesSection,
+  LandingExtras,
+  LoginView,
+  RegisterView,
+  LoadingState,
+  CourseCatalog,
+  CourseSummaryReader,
+  Quiz,
+  AnalysisDashboard,
+  CumulativeGrowthDashboard,
+  AdminLogin,
+  AdminPortal
+} from './components';
 
+// ==========================================
+// 1. LEARNER LAYOUT (Includes Authentic Navbar)
+// ==========================================
+function LearnerLayout({ currentUser, onLogout }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  return (
+    <div className="min-h-screen bg-[#FAFAFA] text-slate-900 flex flex-col font-sans selection:bg-[#0B5C9E] selection:text-white">
+      <Navbar
+        currentUser={currentUser}
+        currentView={location.pathname}
+        onLoginClick={() => navigate('/login')}
+        onRegisterClick={() => navigate('/register')}
+        onLogoutClick={onLogout}
+        onViewGrowth={() => navigate('/growth')}
+        onGoHome={() => navigate('/')}
+      />
+      <main className="flex-1 w-full">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+// ==========================================
+// 2. LANDING PAGE VIEW
+// ==========================================
+function LandingPage({ courses, caseStudies, currentUser, onRefreshCourses }) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (onRefreshCourses) onRefreshCourses();
+  }, []);
+
+  const handleRequireAuth = ({ action, courseId }) => {
+    if (currentUser) {
+      if (action === 'reader') navigate(`/courses/${courseId}`);
+      else if (action === 'quiz') navigate(`/quiz/${courseId}`);
+      return;
+    }
+    const targetUrl = action === 'reader' ? `/courses/${courseId}` : `/quiz/${courseId}`;
+    navigate('/login', {
+      state: {
+        returnTo: targetUrl,
+        notice: 'Please sign in with your official credentials to access civil service learning modules.'
+      }
+    });
+  };
+
+  return (
+    <div>
+      <HeroSection
+        onRegisterClick={() => navigate('/register')}
+        onLoginClick={() => navigate('/login')}
+        currentUser={currentUser}
+      />
+
+      <MetricStatsBar courseCount={courses.length} />
+
+      <NationalGovernanceGrid />
+
+      <ShowcasedCoursesSection
+        courses={courses}
+        onReadSummary={(courseId) => navigate(`/courses/${courseId}`)}
+        onTakeQuiz={(courseId) => navigate(`/quiz/${courseId}`)}
+        currentUser={currentUser}
+        onRequireAuth={handleRequireAuth}
+      />
+
+      <CaseStudiesSection
+        caseStudies={caseStudies}
+        currentUser={currentUser}
+        onRequireAuth={() => {
+          navigate('/login', {
+            state: {
+              returnTo: '/',
+              notice: 'Please sign in to access Amrit Gyaan Kosh governance case studies.'
+            }
+          });
+        }}
+      />
+
+      <LandingExtras />
+    </div>
+  );
+}
+
+// ==========================================
+// 3. COURSE CATALOG PAGE VIEW
+// ==========================================
+function CourseCatalogPage({ courses, loading }) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <button
+          onClick={() => navigate('/')}
+          className="text-xs font-bold text-[#0B5C9E] hover:underline flex items-center gap-1 cursor-pointer"
+        >
+          ← Return to Official Landing Page
+        </button>
+      </div>
+
+      {loading ? (
+        <LoadingState
+          message="Loading Governance Modules..."
+          subMessage="Synchronizing published courses from iGOT"
+        />
+      ) : (
+        <CourseCatalog
+          courses={courses}
+          onReadSummary={(courseId) => navigate(`/courses/${courseId}`)}
+          onTakeQuiz={(courseId) => navigate(`/quiz/${courseId}`)}
+          onViewCourseHistory={(courseId) => navigate(`/quiz/${courseId}`)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 4. COURSE SUMMARY READER PAGE (Auth Gated)
+// ==========================================
+function CourseReaderPage({ currentUser }) {
+  const { courseId } = useParams();
+  const navigate = useNavigate();
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login', {
+        replace: true,
+        state: {
+          returnTo: `/courses/${courseId}`,
+          notice: 'Please sign in to read official course summaries.'
+        }
+      });
+      return;
+    }
+
+    let isMounted = true;
+    setLoading(true);
+    coursesApi.getById(courseId)
+      .then((data) => {
+        if (isMounted && data.success) {
+          setCourse(data.course);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) setError(err.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [courseId, currentUser, navigate]);
+
+  if (!currentUser) return null;
+
+  if (loading) {
+    return (
+      <div className="py-16">
+        <LoadingState
+          message="Loading Module Summary..."
+          subMessage="Fetching authorized content from iGOT Karmayogi"
+        />
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 px-4">
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2">
+          <RiAlertLine size={18} className="shrink-0" />
+          <span>{error || 'Module not found'}</span>
+        </div>
+        <button
+          onClick={() => navigate('/')}
+          className="mt-4 text-[#0B5C9E] font-bold text-sm hover:underline cursor-pointer"
+        >
+          ← Back to Portal
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <CourseSummaryReader
+        course={course}
+        onBackToCatalog={() => navigate('/courses')}
+        onProceedToQuiz={() => navigate(`/quiz/${courseId}`)}
+      />
+    </div>
+  );
+}
+
+// ==========================================
+// 5. QUIZ ASSESSMENT ROOM PAGE (Auth Gated)
+// ==========================================
+function QuizPage({ currentUser, onQuizComplete }) {
+  const { courseId } = useParams();
+  const navigate = useNavigate();
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login', {
+        replace: true,
+        state: {
+          returnTo: `/quiz/${courseId}`,
+          notice: 'Please sign in to take this assessment.'
+        }
+      });
+      return;
+    }
+
+    let isMounted = true;
+    setLoading(true);
+    coursesApi.getById(courseId)
+      .then((data) => {
+        if (isMounted && data.success) {
+          setCourse(data.course);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) setError(err.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [courseId, currentUser, navigate]);
+
+  if (!currentUser) return null;
+
+  if (loading) {
+    return (
+      <div className="py-16">
+        <LoadingState
+          message="Preparing Assessment Room..."
+          subMessage="Setting up 15-question evaluation environment"
+        />
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 px-4">
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2">
+          <RiAlertLine size={18} className="shrink-0" />
+          <span>{error || 'Module not found'}</span>
+        </div>
+        <button
+          onClick={() => navigate('/')}
+          className="mt-4 text-[#0B5C9E] font-bold text-sm hover:underline cursor-pointer"
+        >
+          ← Back to Portal
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Quiz
+        courseId={course.courseId}
+        courseTitle={course.title}
+        mcqs={course.mcqs || []}
+        currentUser={currentUser}
+        onQuizComplete={(payload) => onQuizComplete(course.courseId, payload)}
+        onBackToSummary={() => navigate(`/courses/${courseId}`)}
+      />
+    </div>
+  );
+}
+
+// ==========================================
+// 6. RESULT ANALYSIS DASHBOARD PAGE
+// ==========================================
+function ResultPage({ activeSubmission, activeProfile }) {
+  const navigate = useNavigate();
+
+  if (!activeSubmission || !activeProfile) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <AnalysisDashboard
+        submission={activeSubmission}
+        profile={activeProfile}
+        onBackToCatalog={() => navigate('/')}
+        onViewHistory={() => navigate('/growth')}
+        onRetake={() => {
+          if (activeSubmission.courseId) {
+            navigate(`/quiz/${activeSubmission.courseId}`);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+// ==========================================
+// 7. CUMULATIVE GROWTH DASHBOARD PAGE (Auth Gated)
+// ==========================================
+function GrowthPage({ currentUser, onSelectSubmission }) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login', {
+        replace: true,
+        state: {
+          returnTo: '/growth',
+          notice: 'Please sign in to view your longitudinal growth profile.'
+        }
+      });
+    }
+  }, [currentUser, navigate]);
+
+  if (!currentUser) return null;
+
+  return (
+    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <CumulativeGrowthDashboard
+        currentUser={currentUser}
+        onRequireAuth={() => navigate('/login')}
+        onBack={() => navigate('/')}
+        onSelectSubmission={(submission) => {
+          onSelectSubmission(submission);
+          navigate('/result');
+        }}
+      />
+    </div>
+  );
+}
+
+// ==========================================
+// 8. DEDICATED LOGIN PAGE (No Navbar)
+// ==========================================
+function LoginPage({ currentUser, onAuthSuccess }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (currentUser) {
+    return <Navigate to="/" replace />;
+  }
+
+  const returnTo = location.state?.returnTo || '/';
+  const notice = location.state?.notice || '';
+
+  return (
+    <LoginView
+      intendedNotice={notice}
+      onSuccess={(user) => {
+        onAuthSuccess(user);
+        navigate(returnTo, { replace: true });
+      }}
+      onSwitchToRegister={() => navigate('/register', { state: location.state })}
+      onGoHome={() => navigate('/')}
+    />
+  );
+}
+
+// ==========================================
+// 9. DEDICATED REGISTER PAGE (No Navbar)
+// ==========================================
+function RegisterPage({ currentUser, onAuthSuccess }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (currentUser) {
+    return <Navigate to="/" replace />;
+  }
+
+  const returnTo = location.state?.returnTo || '/';
+
+  return (
+    <RegisterView
+      onSuccess={(user) => {
+        onAuthSuccess(user);
+        navigate(returnTo, { replace: true });
+      }}
+      onSwitchToLogin={() => navigate('/login', { state: location.state })}
+      onGoHome={() => navigate('/')}
+    />
+  );
+}
+
+// ==========================================
+// 10. DEDICATED ADMIN ROUTE (No Learner Navbar)
+// ==========================================
+function AdminRoute({ adminToken, adminUser, onLoginSuccess, onLogout, onCoursesChange }) {
+  const navigate = useNavigate();
+
+  // If not authenticated as admin, show Admin Login (without learner Navbar)
+  if (!adminToken) {
+    return (
+      <AdminLogin
+        onLoginSuccess={onLoginSuccess}
+        onGoHome={() => navigate('/')}
+      />
+    );
+  }
+
+  // If authenticated as admin, show Admin Portal (without learner Navbar)
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 sm:p-6 lg:p-8">
+      <AdminPortal
+        adminUser={adminUser}
+        adminToken={adminToken}
+        onLogout={onLogout}
+        onCoursesChange={onCoursesChange}
+      />
+    </div>
+  );
+}
+
+// ==========================================
+// MAIN APP COMPONENT
+// ==========================================
 function App() {
-  // Check if current URL route is /admin
-  const [isAdminRoute, setIsAdminRoute] = useState(() => {
-    return window.location.pathname.startsWith('/admin');
+  const navigate = useNavigate();
+
+  // Learner Auth State
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sih_current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
-  // Admin Session State (Scoped strictly to /admin)
+  // Admin Auth State
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem('sih_admin_token') || '');
   const [adminUser, setAdminUser] = useState(() => {
     try {
@@ -26,123 +479,64 @@ function App() {
     }
   });
 
-  // Learner Views: 'catalog' | 'reader' | 'quiz' | 'result' | 'growth'
-  const [learnerView, setLearnerView] = useState('catalog');
-
-  // Learner Profile State
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sih_current_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [showAuthModal, setShowAuthModal] = useState(false);
-
-  // Data States
+  // Courses & Data State
   const [courses, setCourses] = useState([]);
-  const [activeCourse, setActiveCourse] = useState(null);
+  const [caseStudies, setCaseStudies] = useState([]);
   const [activeSubmission, setActiveSubmission] = useState(null);
   const [activeProfile, setActiveProfile] = useState(null);
-  const [error, setError] = useState('');
+  const [loadingCourses, setLoadingCourses] = useState(false);
 
-  // Handle route change listener (e.g. popstate or pushState)
   useEffect(() => {
-    const handleLocationChange = () => {
-      setIsAdminRoute(window.location.pathname.startsWith('/admin'));
-    };
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
+    fetchPublishedCourses();
+    fetchCaseStudies();
   }, []);
 
-  useEffect(() => {
-    if (!isAdminRoute) {
-      fetchPublishedCourses();
-    }
-  }, [isAdminRoute]);
-
   const fetchPublishedCourses = async () => {
+    setLoadingCourses(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/courses`);
-      const data = await res.json();
+      const data = await coursesApi.getAll();
       if (data.success) {
         setCourses(data.courses || []);
       }
     } catch (err) {
-      console.error('Failed to fetch courses:', err);
+      console.warn('Courses fetch note:', err.message);
+    } finally {
+      setLoadingCourses(false);
     }
   };
 
-  const handleOpenCourseReader = async (courseId) => {
-    setError('');
+  const fetchCaseStudies = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to fetch course');
-
-      setActiveCourse(data.course);
-      setLearnerView('reader');
+      const data = await caseStudiesApi.getAll();
+      if (data.success) {
+        setCaseStudies(data.caseStudies || []);
+      }
     } catch (err) {
-      setError(err.message);
+      console.warn('Case studies fetch note:', err.message);
     }
   };
 
-  const handleOpenQuiz = async (courseId) => {
-    if (!currentUser) {
-      setShowAuthModal(true);
-      return;
-    }
-
-    setError('');
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to fetch course');
-
-      setActiveCourse(data.course);
-      setLearnerView('quiz');
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleRefreshAll = () => {
+    fetchPublishedCourses();
+    fetchCaseStudies();
   };
 
-  const handleQuizSubmit = async (quizPayload) => {
-    if (!activeCourse) return;
-    setError('');
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/courses/${activeCourse.courseId}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...quizPayload,
-          phone: currentUser?.phone || null,
-          learnerName: currentUser?.name || 'Civil Servant Learner'
-        })
-      });
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Quiz evaluation failed');
-
-      setActiveProfile(data.profile);
-      setActiveSubmission(data.submission);
-      setLearnerView('result');
-      fetchPublishedCourses();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleViewPastSubmission = (submission) => {
-    setActiveSubmission(submission);
-    setActiveProfile(submission.profile);
-    setLearnerView('result');
+  const handleLearnerLoginSuccess = (user) => {
+    localStorage.setItem('sih_current_user', JSON.stringify(user));
+    setCurrentUser(user);
   };
 
   const handleLearnerLogout = () => {
     localStorage.removeItem('sih_current_user');
     setCurrentUser(null);
+    navigate('/');
+  };
+
+  const handleAdminLoginSuccess = (token, user) => {
+    sessionStorage.setItem('sih_admin_token', token);
+    sessionStorage.setItem('sih_admin_user', JSON.stringify(user));
+    setAdminToken(token);
+    setAdminUser(user);
   };
 
   const handleAdminLogout = () => {
@@ -151,247 +545,132 @@ function App() {
     setAdminToken('');
     setAdminUser(null);
   };
-  // =========================================================================
-  // 1. ADMIN ROUTE (/admin): Strictly Authenticated Admin Gateway & Hub
-  // =========================================================================
-  if (isAdminRoute) {
-    if (!adminToken || !adminUser) {
-      return (
-        <AdminLogin
-          onLoginSuccess={(authData) => {
-            setAdminToken(authData.token);
-            setAdminUser(authData.admin);
-          }}
-        />
-      );
+
+  const handleQuizSubmit = async (courseId, quizPayload) => {
+    try {
+      const payload = {
+        ...quizPayload,
+        phone: currentUser?.phone || null,
+        learnerName: currentUser?.name || 'Civil Servant Learner'
+      };
+
+      const data = await coursesApi.submitQuiz(courseId, payload);
+      setActiveProfile(data.profile);
+      setActiveSubmission(data.submission);
+      fetchPublishedCourses();
+      navigate('/result');
+    } catch (err) {
+      console.error('Quiz submission error:', err.message);
+      alert('Failed to submit quiz: ' + err.message);
     }
+  };
 
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans">
-        <AdminPortal
-          adminUser={adminUser}
-          adminToken={adminToken}
-          onLogout={handleAdminLogout}
-        />
-      </div>
-    );
-  }
+  const handleSelectPastSubmission = (submission) => {
+    setActiveSubmission(submission);
+    setActiveProfile(submission.profile);
+  };
 
-  // =========================================================================
-  // 2. PUBLIC LEARNER ROUTE (/): Zero Admin Presence
-  // =========================================================================
   return (
-    <div className="min-h-screen bg-slate-50/80 text-gray-800 font-sans">
-      {/* Learner Public Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => setLearnerView('catalog')}
-            >
-              <div className="w-10 h-10 bg-gradient-to-tr from-blue-700 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-sm">
-                iG
-              </div>
-              <div>
-                <h1 className="text-base font-extrabold text-gray-900 leading-none tracking-tight">
-                  iGOT Karmayogi Hub
-                </h1>
-                <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                  Civil Service Competency Evaluation Platform
-                </p>
-              </div>
-            </div>
-
-            {/* Learner Navigation */}
-            <nav className="hidden sm:flex items-center gap-2 bg-gray-100/70 p-1 rounded-2xl">
-              <button
-                onClick={() => {
-                  setLearnerView('catalog');
-                  fetchPublishedCourses();
-                }}
-                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                  learnerView === 'catalog'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                All Courses ({courses.length})
-              </button>
-
-              {activeCourse && (
-                <>
-                  <button
-                    onClick={() => setLearnerView('reader')}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      learnerView === 'reader'
-                        ? 'bg-white text-blue-700 shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Summary Reader
-                  </button>
-                  <button
-                    onClick={() => setLearnerView('quiz')}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      learnerView === 'quiz'
-                        ? 'bg-white text-blue-700 shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Assessment Room
-                  </button>
-                </>
-              )}
-
-              {activeProfile && (
-                <button
-                  onClick={() => setLearnerView('result')}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                    learnerView === 'result'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Test Evaluation
-                </button>
-              )}
-
-              <button
-                onClick={() => {
-                  if (!currentUser) {
-                    setShowAuthModal(true);
-                  } else {
-                    setLearnerView('growth');
-                  }
-                }}
-                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  learnerView === 'growth'
-                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span>🌱</span>
-                <span>My Growth & All Tests</span>
-              </button>
-            </nav>
-
-            {/* Officer Profile Chip */}
-            <div className="flex items-center gap-2">
-              {currentUser ? (
-                <div className="flex items-center gap-2">
-                  <div
-                    onClick={() => setShowAuthModal(true)}
-                    className="flex items-center gap-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3.5 py-1.5 rounded-2xl cursor-pointer transition-colors"
-                    title="Click to edit profile"
-                  >
-                    <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                      {currentUser.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="text-left hidden sm:block">
-                      <p className="text-xs font-bold text-gray-900 leading-none">{currentUser.name}</p>
-                      <p className="text-[10px] text-gray-500 font-mono leading-none mt-1">{currentUser.phone}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleLearnerLogout}
-                    className="text-gray-400 hover:text-red-600 text-sm p-1.5 rounded-lg transition-colors cursor-pointer"
-                    title="Sign Out Officer"
-                  >
-                    🚪
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
-                >
-                  Sign In (Phone)
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 text-xs rounded-2xl flex items-center justify-between">
-            <span>{error}</span>
-            <button onClick={() => setError('')} className="font-bold cursor-pointer">✕</button>
-          </div>
-        )}
-
-        {/* View 1: Catalog */}
-        {learnerView === 'catalog' && (
-          <CourseCatalog
-            courses={courses}
-            onReadSummary={handleOpenCourseReader}
-            onTakeQuiz={handleOpenQuiz}
-            onViewCourseHistory={(courseId) => handleOpenCourseReader(courseId)}
-          />
-        )}
-
-        {/* View 2: Dedicated Course Summary Reader */}
-        {learnerView === 'reader' && activeCourse && (
-          <CourseSummaryReader
-            course={activeCourse}
-            onProceedToQuiz={() => {
-              if (!currentUser) {
-                setShowAuthModal(true);
-              } else {
-                setLearnerView('quiz');
-              }
-            }}
-            onBackToCatalog={() => setLearnerView('catalog')}
-          />
-        )}
-
-        {/* View 3: Dedicated Assessment Room */}
-        {learnerView === 'quiz' && activeCourse && (
-          <Quiz
-            mcqs={activeCourse.mcqs || []}
-            courseId={activeCourse.courseId}
+    <Routes>
+      {/* 1. Dedicated Authentication Routes (No Navbar) */}
+      <Route
+        path="/login"
+        element={
+          <LoginPage
             currentUser={currentUser}
-            onQuizComplete={handleQuizSubmit}
-            onBackToSummary={() => setLearnerView('reader')}
+            onAuthSuccess={handleLearnerLoginSuccess}
           />
-        )}
-
-        {/* View 4: Test Evaluation */}
-        {learnerView === 'result' && activeProfile && (
-          <AnalysisDashboard
-            profile={activeProfile}
-            submission={activeSubmission}
-            onRetake={() => setLearnerView('quiz')}
-            onBackToCatalog={() => setLearnerView('catalog')}
-            onViewHistory={() => setLearnerView('growth')}
-          />
-        )}
-
-        {/* View 5: Longitudinal Cumulative Growth Dashboard */}
-        {learnerView === 'growth' && (
-          <CumulativeGrowthDashboard
-            currentUser={currentUser}
-            onSelectPastSubmission={handleViewPastSubmission}
-            onBackToCatalog={() => setLearnerView('catalog')}
-          />
-        )}
-      </main>
-
-      {/* Phone Auth Modal */}
-      <PhoneAuthModal
-        isOpen={showAuthModal}
-        currentUser={currentUser}
-        onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={(user) => {
-          setCurrentUser(user);
-          setShowAuthModal(false);
-        }}
+        }
       />
-    </div>
+      <Route
+        path="/register"
+        element={
+          <RegisterPage
+            currentUser={currentUser}
+            onAuthSuccess={handleLearnerLoginSuccess}
+          />
+        }
+      />
+
+      {/* 2. Dedicated Admin Route (No Learner Navbar) */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute
+            adminToken={adminToken}
+            adminUser={adminUser}
+            onLoginSuccess={handleAdminLoginSuccess}
+            onLogout={handleAdminLogout}
+            onCoursesChange={handleRefreshAll}
+          />
+        }
+      />
+
+      {/* 3. Learner Portal Layout Routes (With Authentic Karmayogi Navbar) */}
+      <Route
+        element={
+          <LearnerLayout
+            currentUser={currentUser}
+            onLogout={handleLearnerLogout}
+          />
+        }
+      >
+        <Route
+          path="/"
+          element={
+            <LandingPage
+              courses={courses}
+              caseStudies={caseStudies}
+              currentUser={currentUser}
+              onRefreshCourses={handleRefreshAll}
+            />
+          }
+        />
+        <Route
+          path="/courses"
+          element={
+            <CourseCatalogPage
+              courses={courses}
+              loading={loadingCourses}
+            />
+          }
+        />
+        <Route
+          path="/courses/:courseId"
+          element={<CourseReaderPage currentUser={currentUser} />}
+        />
+        <Route
+          path="/quiz/:courseId"
+          element={
+            <QuizPage
+              currentUser={currentUser}
+              onQuizComplete={handleQuizSubmit}
+            />
+          }
+        />
+        <Route
+          path="/result"
+          element={
+            <ResultPage
+              activeSubmission={activeSubmission}
+              activeProfile={activeProfile}
+            />
+          }
+        />
+        <Route
+          path="/growth"
+          element={
+            <GrowthPage
+              currentUser={currentUser}
+              onSelectSubmission={handleSelectPastSubmission}
+            />
+          }
+        />
+      </Route>
+
+      {/* 4. Catch-all fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

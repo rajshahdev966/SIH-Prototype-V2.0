@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -190,10 +190,13 @@ app.post('/api/courses/ingest', requireAdminAuth, async (req, res) => {
 app.put('/api/admin/courses/:courseId', requireAdminAuth, (req, res) => {
     try {
         const { courseId } = req.params;
-        const { title, masterSummary, mcqs, status } = req.body;
+        const { title, author, category, duration, masterSummary, mcqs, status } = req.body;
 
         const updated = db.updateCourseAndMCQs(courseId, {
             title: title || courseId,
+            author,
+            category,
+            duration,
             masterSummary: masterSummary || '',
             mcqs: Array.isArray(mcqs) ? mcqs : [],
             status: status || 'published'
@@ -291,6 +294,76 @@ app.post('/api/user/:phone/cumulative-analysis', async (req, res) => {
         });
     } catch (error) {
         console.error('[Cumulative Analysis Error]:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Public Case Studies Endpoint (Returns published case studies from DB)
+app.get('/api/case-studies', (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const isAdmin = authHeader && !!db.validateAdminSession(authHeader);
+        const caseStudies = db.getAllCaseStudies(isAdmin);
+        res.json({ success: true, caseStudies });
+    } catch (error) {
+        console.error('[API] Error fetching case studies:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Single Case Study Detail Endpoint
+app.get('/api/case-studies/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const caseStudy = db.getCaseStudy(id);
+        if (!caseStudy) {
+            return res.status(404).json({ success: false, error: 'Case study not found' });
+        }
+        res.json({ success: true, caseStudy });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Admin Create Case Study
+app.post('/api/admin/case-studies', requireAdminAuth, (req, res) => {
+    try {
+        const { id, title, author, categories, duration, summary, lessons, status } = req.body;
+        if (!title || !title.trim()) {
+            return res.status(400).json({ success: false, error: 'Title is required' });
+        }
+        const created = db.saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status });
+        console.log(`[Admin] Case study "${created.id}" created by "${req.admin.username}".`);
+        res.json({ success: true, caseStudy: created });
+    } catch (error) {
+        console.error('[Admin Case Study Create Error]:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Admin Update Case Study
+app.put('/api/admin/case-studies/:id', requireAdminAuth, (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, author, categories, duration, summary, lessons, status } = req.body;
+        const updated = db.saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status });
+        console.log(`[Admin] Case study "${id}" updated by "${req.admin.username}".`);
+        res.json({ success: true, caseStudy: updated });
+    } catch (error) {
+        console.error('[Admin Case Study Update Error]:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Admin Delete Case Study
+app.delete('/api/admin/case-studies/:id', requireAdminAuth, (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = db.deleteCaseStudy(id);
+        console.log(`[Admin] Case study "${id}" deleted by "${req.admin.username}".`);
+        res.json({ success: true, deleted });
+    } catch (error) {
+        console.error('[Admin Case Study Delete Error]:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });

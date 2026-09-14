@@ -1,4 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  RiCellphoneLine,
+  RiBookOpenLine,
+  RiCheckLine,
+  RiCloseLine,
+  RiTimeLine
+} from '@remixicon/react';
 
 const Quiz = ({ mcqs, courseId, currentUser, onQuizComplete, onBackToSummary }) => {
   const [answers, setAnswers] = useState({});
@@ -69,8 +76,9 @@ const Quiz = ({ mcqs, courseId, currentUser, onQuizComplete, onBackToSummary }) 
             <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
               Assessment in Progress
             </span>
-            <span className="text-xs text-gray-500 font-mono">
-              📱 {currentUser?.phone} ({currentUser?.name})
+            <span className="text-xs text-gray-500 font-mono flex items-center gap-1">
+              <RiCellphoneLine size={13} />
+              <span>{currentUser?.phone} ({currentUser?.name})</span>
             </span>
           </div>
           <h2 className="text-xl font-bold text-gray-900">
@@ -82,9 +90,10 @@ const Quiz = ({ mcqs, courseId, currentUser, onQuizComplete, onBackToSummary }) 
           {onBackToSummary && (
             <button
               onClick={onBackToSummary}
-              className="text-xs text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+              className="text-xs text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer flex items-center gap-1.5"
             >
-              📖 Review Summary
+              <RiBookOpenLine size={13} />
+              <span>Review Summary</span>
             </button>
           )}
           <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200">
@@ -161,10 +170,14 @@ const Quiz = ({ mcqs, courseId, currentUser, onQuizComplete, onBackToSummary }) 
                         <span>{opt}</span>
                       </div>
                       {submitted && opt === mcq.correct_answer && (
-                        <span className="text-xs font-bold text-green-700 bg-green-200/50 px-2 py-0.5 rounded">✓ Correct</span>
+                        <span className="text-xs font-bold text-green-700 bg-green-200/50 px-2 py-0.5 rounded inline-flex items-center gap-1">
+                          <RiCheckLine size={12} /> Correct
+                        </span>
                       )}
                       {submitted && isSelected && opt !== mcq.correct_answer && (
-                        <span className="text-xs font-bold text-red-700 bg-red-200/50 px-2 py-0.5 rounded">✗ Chosen</span>
+                        <span className="text-xs font-bold text-red-700 bg-red-200/50 px-2 py-0.5 rounded inline-flex items-center gap-1">
+                          <RiCloseLine size={12} /> Chosen
+                        </span>
                       )}
                     </div>
                   );
@@ -173,8 +186,8 @@ const Quiz = ({ mcqs, courseId, currentUser, onQuizComplete, onBackToSummary }) 
 
               {timeSpent[idx] && (
                 <div className="mt-3 text-right">
-                  <span className="text-xs text-gray-400 font-mono">
-                    ⏱️ {timeSpent[idx]} seconds spent
+                  <span className="text-xs text-gray-400 font-mono inline-flex items-center gap-1">
+                    <RiTimeLine size={12} /> {timeSpent[idx]} seconds spent
                   </span>
                 </div>
               )}

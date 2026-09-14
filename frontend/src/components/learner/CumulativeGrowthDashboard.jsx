@@ -1,5 +1,18 @@
-import { API_BASE_URL } from '../config';
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  RiCellphoneLine,
+  RiMailLine,
+  RiLoader4Line,
+  RiFlashlightLine,
+  RiBrainLine,
+  RiStarLine,
+  RiCheckLine,
+  RiAlertLine,
+  RiTimeLine,
+  RiScales3Line,
+  RiFocus3Line
+} from '@remixicon/react';
+import { API_BASE_URL } from '../../config';
 
 const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBackToCatalog }) => {
   const [profileData, setProfileData] = useState(null);
@@ -84,8 +97,10 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
                 Official Account
               </span>
             </div>
-            <p className="text-xs text-gray-500 font-mono mt-0.5">
-              📱 {currentUser?.phone} • ✉️ {currentUser?.email}
+            <p className="text-xs text-gray-500 font-mono mt-0.5 flex items-center gap-1">
+              <span className="flex items-center gap-1"><RiCellphoneLine size={13} /> {currentUser?.phone}</span>
+              <span>•</span>
+              <span className="flex items-center gap-1"><RiMailLine size={13} /> {currentUser?.email}</span>
             </p>
           </div>
         </div>
@@ -104,12 +119,13 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
           >
             {analyzing ? (
               <>
-                <span className="animate-spin text-sm">⏳</span>
+                <RiLoader4Line className="animate-spin" size={15} />
                 <span>Synthesizing All Tests...</span>
               </>
             ) : (
               <>
-                <span>⚡ Run Holistic Multi-Test AI Synthesis</span>
+                <RiFlashlightLine size={15} />
+                <span>Run Holistic Multi-Test AI Synthesis</span>
               </>
             )}
           </button>
@@ -157,7 +173,8 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
           <div className="border-b pb-4 flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <span>🧠</span> Longitudinal Competency Trajectory
+                <RiBrainLine size={20} className="text-indigo-600" />
+                <span>Longitudinal Competency Trajectory</span>
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Holistic synthesis of performance, recurring conceptual patterns, and answering pacing across {profileData?.cumulativeAnalysis?.testsAnalyzed || totalTests} tests.
@@ -175,12 +192,13 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-green-50 border border-green-200 p-5 rounded-xl">
               <h4 className="font-bold text-green-900 text-sm mb-3 flex items-center gap-2">
-                <span>🌟</span> Cross-Module Core Strengths
+                <RiStarLine size={16} className="text-green-600" />
+                <span>Cross-Module Core Strengths</span>
               </h4>
               <ul className="space-y-2 text-xs text-green-950">
                 {cumulative.overarching_strengths?.map((str, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                    <RiCheckLine size={14} className="text-green-600 shrink-0 mt-0.5" />
                     <span>{str}</span>
                   </li>
                 ))}
@@ -189,7 +207,8 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
 
             <div className="bg-amber-50 border border-amber-200 p-5 rounded-xl">
               <h4 className="font-bold text-amber-900 text-sm mb-3 flex items-center gap-2">
-                <span>⚠️</span> Persistent Blind Spots & Complexities
+                <RiAlertLine size={16} className="text-amber-600" />
+                <span>Persistent Blind Spots & Complexities</span>
               </h4>
               <ul className="space-y-2 text-xs text-amber-950">
                 {cumulative.persistent_blind_spots?.map((blind, idx) => (
@@ -205,7 +224,8 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-gray-50 border border-gray-200 p-5 rounded-xl">
               <h4 className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
-                <span>⏱️</span> Longitudinal Pacing & Speed
+                <RiTimeLine size={16} className="text-blue-600" />
+                <span>Longitudinal Pacing & Speed</span>
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
                 {cumulative.cognitive_pacing_profile}
@@ -214,7 +234,8 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
 
             <div className="bg-gray-50 border border-gray-200 p-5 rounded-xl">
               <h4 className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2">
-                <span>⚖️</span> Theory vs. Scenario Synthesis
+                <RiScales3Line size={16} className="text-indigo-600" />
+                <span>Theory vs. Scenario Synthesis</span>
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
                 {cumulative.cross_domain_synthesis}
@@ -224,7 +245,8 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
 
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-6 rounded-xl">
             <h4 className="font-bold text-blue-900 text-sm mb-2 flex items-center gap-2">
-              <span>🎯</span> Lifelong Learning & Career Remediation Roadmap
+              <RiFocus3Line size={16} className="text-blue-600" />
+              <span>Lifelong Learning & Career Remediation Roadmap</span>
             </h4>
             <p className="text-xs text-blue-950 leading-relaxed">
               {cumulative.holistic_remediation_roadmap}
@@ -233,7 +255,9 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
         </div>
       ) : totalTests > 0 ? (
         <div className="bg-white p-8 rounded-2xl border border-dashed border-gray-300 text-center">
-          <div className="text-3xl mb-2">⚡</div>
+          <div className="flex justify-center text-amber-500 mb-2">
+            <RiFlashlightLine size={36} />
+          </div>
           <h3 className="text-base font-bold text-gray-800">Holistic Analysis Not Yet Generated</h3>
           <p className="text-xs text-gray-500 max-w-md mx-auto my-3">
             You have completed {totalTests} assessment(s). Click the button below to initiate the Cumulative AI Agent to analyze your longitudinal growth trajectory.
