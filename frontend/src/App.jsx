@@ -418,15 +418,17 @@ function LoginPage({ currentUser, onAuthSuccess }) {
 
   const returnTo = location.state?.returnTo || '/';
   const notice = location.state?.notice || '';
+  const initialEmail = location.state?.email || '';
 
   return (
     <LoginView
       intendedNotice={notice}
+      initialEmail={initialEmail}
       onSuccess={(user) => {
         onAuthSuccess(user);
         navigate(returnTo, { replace: true });
       }}
-      onSwitchToRegister={() => navigate('/register', { state: location.state })}
+      onSwitchToRegister={(typedEmail) => navigate('/register', { state: { ...location.state, email: typedEmail || initialEmail } })}
       onGoHome={() => navigate('/')}
     />
   );
@@ -444,14 +446,16 @@ function RegisterPage({ currentUser, onAuthSuccess }) {
   }
 
   const returnTo = location.state?.returnTo || '/';
+  const initialEmail = location.state?.email || '';
 
   return (
     <RegisterView
+      initialEmail={initialEmail}
       onSuccess={(user) => {
         onAuthSuccess(user);
         navigate(returnTo, { replace: true });
       }}
-      onSwitchToLogin={() => navigate('/login', { state: location.state })}
+      onSwitchToLogin={(typedEmail) => navigate('/login', { state: { ...location.state, email: typedEmail || initialEmail } })}
       onGoHome={() => navigate('/')}
     />
   );

@@ -255,24 +255,73 @@ app.delete('/api/courses/:courseId', requireAdminAuth, async (req, res) => {
 // 3. Public Learner Portal Endpoints
 // ==========================================
 
-// Learner Login / Register (Phone, Name, Email)
-app.post('/api/auth/login', async (req, res) => {
+// Learner Registration (Strict: Email, Password, Name)
+app.post('/api/auth/register', async (req, res) => {
     try {
-        const { phone, name, email } = req.body;
-        if (!phone || !phone.trim()) {
-            return res.status(400).json({ success: false, error: 'Phone number is required' });
+        const { email, password, name } = req.body;
+        if (!email || !email.trim()) {
+            return res.status(400).json({ success: false, code: 'MISSING_EMAIL', error: 'Email address is required' });
+        }
+        if (!password || !password.trim()) {
+            return res.status(400).json({ success: false, code: 'MISSING_PASSWORD', error: 'Password is required' });
+        }
+        if (!name || !name.trim()) {
+            return res.status(400).json({ success: false, code: 'MISSING_NAME', error: 'Full Name is required' });
         }
 
-        const user = await db.findOrCreateUser({
-            phone: phone.trim(),
-            name: name ? name.trim() : 'Civil Servant Learner',
-            email: email ? email.trim() : ''
-        });
-
+        const user = await db.registerUser({ email, password, name });
+        console.log(`[Learner Auth] Registered new user: "${user.name}" (${user.email})`);
         res.json({ success: true, user });
     } catch (error) {
-        console.error('[Learner Auth Error]:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        console.warn('[Learner Register Error]:', error.message);
+        const statusCode = error.code === 'EMAIL_ALREADY_EXISTS' ? 409 : 400;
+        res.status(statusCode).json({
+            success: false,
+            code: error.code || 'REGISTRATION_FAILED',
+            error: error.message
+        });
+    }
+});
+
+// Learner Login (Strict: Email & Password)
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password, phone, name } = req.body;
+        
+        // Strict email & password flow
+        if (email && password) {
+            const user = await db.verifyUserCredentials(email, password);
+            console.log(`[Learner Auth] Learner "${user.name}" logged in successfully.`);
+            return res.json({ success: true, user });
+        }
+
+        // Backward compatibility fallback for legacy tests if phone passed
+        if (phone && phone.trim()) {
+            const user = await db.findOrCreateUser({
+                phone: phone.trim(),
+                name: name ? name.trim() : 'Civil Servant Learner',
+                email: email ? email.trim() : ''
+            });
+            return res.json({ success: true, user });
+        }
+
+        if (!email || !email.trim()) {
+            return res.status(400).json({ success: false, code: 'MISSING_EMAIL', error: 'Email address is required' });
+        }
+        if (!password || !password.trim()) {
+            return res.status(400).json({ success: false, code: 'MISSING_PASSWORD', error: 'Password is required' });
+        }
+    } catch (error) {
+        console.warn('[Learner Auth Error]:', error.message);
+        let statusCode = 400;
+        if (error.code === 'USER_NOT_FOUND') statusCode = 404;
+        if (error.code === 'INVALID_PASSWORD') statusCode = 401;
+
+        res.status(statusCode).json({
+            success: false,
+            code: error.code || 'AUTH_FAILED',
+            error: error.message
+        });
     }
 });
 

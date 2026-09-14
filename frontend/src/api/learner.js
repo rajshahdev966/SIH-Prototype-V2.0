@@ -1,12 +1,16 @@
 import { apiClient } from './client';
 
 export const learnerApi = {
-  login: (phone, name, email) => apiClient('/api/auth/login', {
+  login: (email, password) => apiClient('/api/auth/login', {
     method: 'POST',
-    body: { phone, name, email }
+    body: { email, password }
   }),
-  getProfile: (phone) => apiClient('/api/user/' + encodeURIComponent(phone) + '/profile'),
-  generateCumulativeAnalysis: (phone) => apiClient('/api/user/' + encodeURIComponent(phone) + '/cumulative-analysis', {
+  register: ({ email, password, name }) => apiClient('/api/auth/register', {
+    method: 'POST',
+    body: { email, password, name }
+  }),
+  getProfile: (phoneOrEmail) => apiClient('/api/user/' + encodeURIComponent(phoneOrEmail) + '/profile'),
+  generateCumulativeAnalysis: (phoneOrEmail) => apiClient('/api/user/' + encodeURIComponent(phoneOrEmail) + '/cumulative-analysis', {
     method: 'POST'
   })
 };

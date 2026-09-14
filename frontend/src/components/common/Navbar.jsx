@@ -62,15 +62,15 @@ const Navbar = ({
               </button>
 
               <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
-                <div className="w-9 h-9 rounded-full bg-[#EBF5FF] border border-blue-300 text-[#0B5C9E] font-bold flex items-center justify-center text-sm shadow-xs">
-                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'C'}
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0B5C9E] to-[#072C68] text-white font-bold flex items-center justify-center text-sm shadow-xs ring-2 ring-blue-100 shrink-0">
+                  {currentUser.name ? currentUser.name.trim().charAt(0).toUpperCase() : 'C'}
                 </div>
-                <div className="hidden sm:block text-left">
-                  <p className="text-xs font-bold text-slate-900 leading-tight">
+                <div className="text-left">
+                  <p className="text-xs font-black text-slate-900 leading-tight">
                     {currentUser.name || 'Civil Servant'}
                   </p>
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    {currentUser.phone || 'Government Officer'}
+                  <p className="text-[10px] text-slate-500 font-mono truncate max-w-[160px] hidden sm:block">
+                    {currentUser.email || currentUser.phone || 'Government Officer'}
                   </p>
                 </div>
                 <button

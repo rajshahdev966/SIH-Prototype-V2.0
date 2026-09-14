@@ -3,8 +3,20 @@ const fs = require('fs');
 const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const connectionString = process.env.DATABASE_URL || process.env.DATABASE_EXTERNAL_URL;
-const isPg = Boolean(connectionString && connectionString.trim());
+let effectiveConnectionString = (process.env.DATABASE_URL || process.env.DATABASE_EXTERNAL_URL || '').trim();
+
+if (effectiveConnectionString) {
+    try {
+        const parsed = new URL(effectiveConnectionString);
+        // If internal Render host (e.g. dpg-xxx without dot) is used outside Render, auto-resolve to external host
+        if (parsed.hostname.startsWith('dpg-') && !parsed.hostname.includes('.') && !process.env.RENDER) {
+            parsed.hostname = `${parsed.hostname}.oregon-postgres.render.com`;
+            effectiveConnectionString = parsed.toString();
+        }
+    } catch (_) {}
+}
+
+const isPg = Boolean(effectiveConnectionString);
 
 let pgPool = null;
 let sqliteDb = null;
@@ -15,7 +27,7 @@ const DB_PATH = path.join(DB_DIR, 'sih_portal.db');
 if (isPg) {
     const { Pool } = require('pg');
     pgPool = new Pool({
-        connectionString: connectionString.trim(),
+        connectionString: effectiveConnectionString,
         ssl: { rejectUnauthorized: false }
     });
     console.log('[Database] Using Cloud PostgreSQL (Render Persistent DB)');
@@ -177,6 +189,7 @@ const ALL_TABLES_SQL = `
         phone TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT NOT NULL,
+        password_hash TEXT,
         created_at TEXT
     );
 
@@ -237,14 +250,21 @@ const ALL_TABLES_SQL = `
 
     CREATE INDEX IF NOT EXISTS idx_submissions_course ON submissions(course_id);
     CREATE INDEX IF NOT EXISTS idx_submissions_phone ON submissions(phone);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 `;
 
 // Initialize Schema
 async function initDb() {
     if (isPg) {
         await pgPool.query(ALL_TABLES_SQL);
+        try {
+            await pgPool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;');
+        } catch (_) {}
     } else {
         sqliteDb.exec(ALL_TABLES_SQL);
+        try {
+            sqliteDb.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;');
+        } catch (_) {}
     }
 
     // Seed Initial Root Admin if none exists
@@ -427,20 +447,91 @@ async function getAllAdmins() {
 // User Authentication (Learners)
 // ==========================================
 
+async function registerUser({ email, password, name }) {
+    if (!email || !email.trim()) throw new Error('Email address is required');
+    if (!password || !password.trim()) throw new Error('Password is required');
+    if (!name || !name.trim()) throw new Error('Name is required');
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    const existing = await queryOne('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+    if (existing) {
+        const err = new Error('An account with this email already exists. Please log in.');
+        err.code = 'EMAIL_ALREADY_EXISTS';
+        throw err;
+    }
+
+    const hash = hashPassword(password.trim());
+    const phoneKey = cleanEmail; // Stable primary key identifier
+
+    await execute(
+        'INSERT INTO users (phone, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+        [phoneKey, cleanName, cleanEmail, hash, new Date().toISOString()]
+    );
+
+    return {
+        name: cleanName,
+        email: cleanEmail,
+        phone: phoneKey
+    };
+}
+
+async function verifyUserCredentials(email, password) {
+    if (!email || !email.trim()) {
+        const err = new Error('Email address is required');
+        err.code = 'MISSING_EMAIL';
+        throw err;
+    }
+    if (!password || !password.trim()) {
+        const err = new Error('Password is required');
+        err.code = 'MISSING_PASSWORD';
+        throw err;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await queryOne('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(phone) = ?', [cleanEmail, cleanEmail]);
+    
+    if (!user) {
+        const err = new Error('Account does not exist. Please register first.');
+        err.code = 'USER_NOT_FOUND';
+        throw err;
+    }
+
+    const hash = hashPassword(password.trim());
+    if (user.password_hash && user.password_hash !== hash) {
+        const err = new Error('Incorrect password. Please verify and try again.');
+        err.code = 'INVALID_PASSWORD';
+        throw err;
+    }
+
+    // If existing legacy user didn't have password_hash, set it on login
+    if (!user.password_hash) {
+        await execute('UPDATE users SET password_hash = ? WHERE LOWER(email) = ?', [hash, cleanEmail]);
+    }
+
+    return {
+        name: user.name,
+        email: user.email,
+        phone: user.phone || user.email,
+        createdAt: user.created_at
+    };
+}
+
 async function findOrCreateUser({ phone, name, email }) {
-    if (!phone) throw new Error('Phone number is required');
-    const cleanPhone = phone.trim();
+    if (!phone && !email) throw new Error('Phone number or email is required');
+    const cleanPhone = (phone || email).trim();
     const cleanName = (name || 'Learner').trim();
-    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanEmail = (email || cleanPhone).trim().toLowerCase();
     const now = new Date().toISOString();
 
-    const existing = await queryOne('SELECT * FROM users WHERE phone = ?', [cleanPhone]);
+    const existing = await queryOne('SELECT * FROM users WHERE phone = ? OR LOWER(email) = ?', [cleanPhone, cleanEmail]);
     if (existing) {
         if ((cleanName && cleanName !== existing.name) || (cleanEmail && cleanEmail !== existing.email)) {
             await execute('UPDATE users SET name = ?, email = ? WHERE phone = ?',
-                [cleanName || existing.name, cleanEmail || existing.email, cleanPhone]);
+                [cleanName || existing.name, cleanEmail || existing.email, existing.phone]);
         }
-        return await queryOne('SELECT * FROM users WHERE phone = ?', [cleanPhone]);
+        return await queryOne('SELECT * FROM users WHERE phone = ?', [existing.phone]);
     }
 
     await execute('INSERT INTO users (phone, name, email, created_at) VALUES (?, ?, ?, ?)',
@@ -449,8 +540,10 @@ async function findOrCreateUser({ phone, name, email }) {
     return await queryOne('SELECT * FROM users WHERE phone = ?', [cleanPhone]);
 }
 
-async function getUser(phone) {
-    return await queryOne('SELECT * FROM users WHERE phone = ?', [phone]);
+async function getUser(identifier) {
+    if (!identifier) return null;
+    const clean = identifier.trim().toLowerCase();
+    return await queryOne('SELECT * FROM users WHERE phone = ? OR LOWER(email) = ?', [identifier.trim(), clean]);
 }
 
 // ==========================================
@@ -864,6 +957,8 @@ module.exports = {
     updateAdminProfile,
     createNewAdmin,
     getAllAdmins,
+    registerUser,
+    verifyUserCredentials,
     findOrCreateUser,
     getUser,
     getCourse,

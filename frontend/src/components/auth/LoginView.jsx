@@ -1,49 +1,48 @@
 import React, { useState } from 'react';
 import {
   RiLockLine,
-  RiCursorLine,
-  RiShieldKeyholeLine,
+  RiMailLine,
   RiAlertLine,
-  RiCloseLine
+  RiCloseLine,
+  RiUserAddLine,
+  RiEyeLine,
+  RiEyeOffLine
 } from '@remixicon/react';
 import { learnerApi } from '../../api';
 
-const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice }) => {
-  const [loginMode, setLoginMode] = useState('password'); // 'password' | 'otp'
-  const [emailOrPhone, setEmailOrPhone] = useState('');
-  const [passwordOrOtp, setPasswordOrOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice, initialEmail = '' }) => {
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isNotFound, setIsNotFound] = useState(false);
   const [captchaVerified, setCaptchaVerified] = useState(true);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsNotFound(false);
 
-    if (!emailOrPhone.trim()) {
-      setError('Please enter your government email or registered mobile number');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError('Please enter your registered email address');
       return;
     }
 
-    if (loginMode === 'password' && !passwordOrOtp) {
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid email address (e.g. officer@nic.in or officer@gmail.com)');
+      return;
+    }
+
+    if (!password) {
       setError('Please enter your account password');
       return;
     }
 
     setLoading(true);
     try {
-      // Authenticate with backend learner endpoint
-      // Supports phone number as primary ID, plus name/email
-      const cleanInput = emailOrPhone.trim();
-      const isEmail = cleanInput.includes('@');
-      const phoneParam = isEmail ? ('+91-' + Math.abs(cleanInput.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)).toString().slice(0, 10)) : cleanInput;
-
-      const data = await learnerApi.login(
-        phoneParam,
-        isEmail ? cleanInput.split('@')[0].toUpperCase() : 'Officer ' + cleanInput.slice(-4),
-        isEmail ? cleanInput : (cleanInput + '@gov.in')
-      );
+      const data = await learnerApi.login(cleanEmail, password);
 
       if (data.success && data.user) {
         onSuccess(data.user);
@@ -51,14 +50,22 @@ const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice }) 
         throw new Error(data.error || 'Authentication failed');
       }
     } catch (err) {
-      setError(err.message || 'Login failed. Please verify credentials.');
+      const msg = err.message || '';
+      const notFound = msg.toLowerCase().includes('not exist') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('register first');
+      
+      setIsNotFound(notFound);
+      if (notFound) {
+        setError('This account does not exist in our database. Please register to create an account.');
+      } else {
+        setError(msg || 'Login failed. Please verify your credentials and try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans ">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans">
       {/* Top Banner Notice if redirected by Auth Gate */}
       {intendedNotice && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2 text-center text-xs sm:text-sm font-bold shadow-xs flex items-center justify-center gap-1.5">
@@ -70,22 +77,26 @@ const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice }) 
       <div className="flex-1 flex flex-col lg:flex-row w-full bg-white">
         
         {/* =========================================================================
-            LEFT 50% PANEL: Official Infographic Guide (Matching login.png)
+            LEFT 50% PANEL: Official Infographic Banner
            ========================================================================= */}
         <div className="lg:w-1/2 bg-gradient-to-br from-[#072C68] via-[#0A387E] to-[#0D47A1] text-white p-8 sm:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden">
-          {/* Subtle Circuit / Hexagonal Watermark Overlay */}
-         <img src="https://portal.igotkarmayogi.gov.in/auth/resources/h8uo2/login/sunbird/img/How_to_Login_V2.png" alt="login process" className='h-full object-cover'/>
-
-
+          <img
+            src="https://portal.igotkarmayogi.gov.in/auth/resources/h8uo2/login/sunbird/img/How_to_Login_V2.png"
+            alt="login process"
+            className="h-full object-cover max-h-[680px] mx-auto rounded-xl shadow-lg"
+          />
         </div>
 
         {/* =========================================================================
-            RIGHT 50% PANEL: Clean Authentication Form Card (Matching login.png)
+            RIGHT 50% PANEL: Strict Email & Password Authentication Form Card
            ========================================================================= */}
         <div className="lg:w-1/2 p-8 sm:p-12 lg:p-16 flex flex-col justify-center bg-white relative">
           {/* Help Button in Top Right */}
           <div className="absolute top-6 right-6">
-            <span className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs cursor-pointer" title="Support & Help">
+            <span
+              className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs cursor-pointer"
+              title="Support & Help"
+            >
               ?
             </span>
           </div>
@@ -100,98 +111,109 @@ const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice }) 
               <p className="text-[11px] font-semibold text-slate-500 font-hindi">
                 — लोकहितं मम करणीयम् —
               </p>
+              <h1 className="text-lg font-bold text-slate-800 pt-2">
+                Civil Servant Sign In
+              </h1>
+              <p className="text-xs text-slate-500">
+                Enter your registered official email and password to proceed
+              </p>
             </div>
 
             {/* Error Message Callout */}
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <RiAlertLine size={16} />
-                  <span>{error}</span>
-                </span>
-                <button onClick={() => setError('')} className="text-red-500 hover:text-red-700 cursor-pointer">
-                  <RiCloseLine size={16} />
-                </button>
+              <div className={`p-4 rounded-xl text-xs font-semibold border ${
+                isNotFound
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <RiAlertLine size={18} className={`shrink-0 mt-0.5 ${isNotFound ? 'text-amber-600' : 'text-red-500'}`} />
+                    <div>
+                      <p className="font-bold text-sm leading-tight">{isNotFound ? 'Account Not Found' : 'Authentication Error'}</p>
+                      <p className="mt-1 text-xs opacity-90">{error}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { setError(''); setIsNotFound(false); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <RiCloseLine size={16} />
+                  </button>
+                </div>
+
+                {/* Direct Action prompt to Register when account does not exist */}
+                {isNotFound && (
+                  <div className="mt-3 pt-3 border-t border-amber-200/80 flex items-center justify-between">
+                    <span className="text-[11px] text-amber-800">New to iGOT Karmayogi?</span>
+                    <button
+                      type="button"
+                      onClick={() => onSwitchToRegister(email)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F37023] hover:bg-[#D95B12] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+                    >
+                      <RiUserAddLine size={14} />
+                      <span>Register Account Now →</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Login Type Radio Pill Selector */}
-            <div className="flex items-center justify-center gap-8 py-2 text-sm font-semibold text-slate-700 border-b border-slate-100">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="loginMode"
-                  checked={loginMode === 'password'}
-                  onChange={() => setLoginMode('password')}
-                  className="w-4 h-4 text-[#0B5C9E] focus:ring-[#0B5C9E]"
-                />
-                <span>Login with password</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="loginMode"
-                  checked={loginMode === 'otp'}
-                  onChange={() => setLoginMode('otp')}
-                  className="w-4 h-4 text-[#0B5C9E] focus:ring-[#0B5C9E]"
-                />
-                <span>Login with OTP</span>
-              </label>
-            </div>
-
-            {/* Main Form */}
+            {/* Main Email & Password Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Email / Mobile Number <span className="text-red-500">*</span>
+                  Registered Email Address <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={emailOrPhone}
-                  onChange={(e) => setEmailOrPhone(e.target.value)}
-                  placeholder="e.g. officer@gov.in or 9876543210"
-                  className="w-full h-11 px-3.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-[#0B5C9E] focus:border-transparent outline-none transition-all"
-                  required
-                />
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <RiMailLine size={17} />
+                  </span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (error) { setError(''); setIsNotFound(false); }
+                    }}
+                    placeholder="e.g. raj.shah@nic.in"
+                    className="w-full h-11 pl-10 pr-3.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-[#0B5C9E] focus:border-transparent outline-none transition-all"
+                    required
+                    autoComplete="email"
+                  />
+                </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-bold text-slate-800">
-                    {loginMode === 'password' ? 'Password' : 'Enter OTP'} <span className="text-red-500">*</span>
+                    Password <span className="text-red-500">*</span>
                   </label>
-                  {loginMode === 'password' && (
-                    <span className="text-xs font-semibold text-[#0073BC] hover:underline cursor-pointer">
-                      Forgot Password?
-                    </span>
-                  )}
                 </div>
 
-                <input
-                  type={loginMode === 'password' ? 'password' : 'text'}
-                  value={passwordOrOtp}
-                  onChange={(e) => setPasswordOrOtp(e.target.value)}
-                  placeholder={loginMode === 'password' ? '••••••••••••' : 'Enter 6-digit OTP'}
-                  className="w-full h-11 px-3.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-[#0B5C9E] focus:border-transparent outline-none transition-all"
-                  required
-                />
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <RiLockLine size={17} />
+                  </span>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (error) { setError(''); setIsNotFound(false); }
+                    }}
+                    placeholder="Enter your account password"
+                    className="w-full h-11 pl-10 pr-10 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-[#0B5C9E] focus:border-transparent outline-none transition-all"
+                    required
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <RiEyeOffLine size={18} /> : <RiEyeLine size={18} />}
+                  </button>
+                </div>
               </div>
-
-              {loginMode === 'otp' && !otpSent && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (emailOrPhone) {
-                      setOtpSent(true);
-                      setPasswordOrOtp('123456');
-                    }
-                  }}
-                  className="text-xs font-bold text-[#0B5C9E] hover:underline block"
-                >
-                  Generate & Send OTP to {emailOrPhone || 'device'} →
-                </button>
-              )}
 
               {/* Simulated reCAPTCHA Container */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
@@ -214,47 +236,22 @@ const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice }) 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 bg-[#0073BC] hover:bg-[#0B5C9E] text-white font-bold text-sm rounded-lg shadow-sm hover:shadow transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full h-11 bg-[#0073BC] hover:bg-[#0B5C9E] text-white font-bold text-sm rounded-lg shadow-sm hover:shadow transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {loading ? (
                   <span>Verifying Credentials...</span>
                 ) : (
-                  <span>Login</span>
+                  <span>Sign In</span>
                 )}
               </button>
             </form>
 
-            {/* Divider */}
-            <div className="relative flex items-center justify-center">
-              <div className="border-t border-slate-200 w-full" />
-              <span className="bg-white px-3 text-xs text-slate-400 absolute">or</span>
-            </div>
-
-            {/* Login with Providers */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700">
-                Login with Providers
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmailOrPhone('civilservant@nic.in');
-                    setPasswordOrOtp('gov@2026');
-                  }}
-                  className="w-full h-11 bg-[#0073BC] hover:bg-[#0B5C9E] text-white font-medium text-sm px-4 rounded-lg flex items-center justify-between cursor-pointer"
-                >
-                  <span>Select Provider (Parichay / Jan Parichay)</span>
-                  <span>▾</span>
-                </button>
-              </div>
-            </div>
-
             {/* Bottom Link to Register */}
-            <div className="text-center pt-2 text-xs text-slate-600">
+            <div className="text-center pt-2 text-xs text-slate-600 border-t border-slate-100">
               <span>Don't have an account yet? </span>
               <button
-                onClick={onSwitchToRegister}
+                type="button"
+                onClick={() => onSwitchToRegister(email)}
                 className="font-bold text-[#0073BC] hover:underline cursor-pointer"
               >
                 Register here
