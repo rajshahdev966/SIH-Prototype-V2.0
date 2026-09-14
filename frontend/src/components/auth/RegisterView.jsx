@@ -10,6 +10,7 @@ import {
   RiCheckLine
 } from '@remixicon/react';
 import { learnerApi } from '../../api';
+import { useNavigate } from 'react-router-dom';
 
 const RegisterView = ({ onSuccess, onSwitchToLogin, onGoHome, initialEmail = '' }) => {
   const [name, setName] = useState('');
@@ -18,6 +19,7 @@ const RegisterView = ({ onSuccess, onSwitchToLogin, onGoHome, initialEmail = '' 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
@@ -64,15 +66,15 @@ const RegisterView = ({ onSuccess, onSwitchToLogin, onGoHome, initialEmail = '' 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans">
       <div className="flex-1 flex flex-col lg:flex-row w-full bg-white">
-        
+
         {/* =========================================================================
             LEFT 50% PANEL: Official Karmayogi Onboarding Visual Banner
            ========================================================================= */}
-        <div className="flex flex-col justify-between overflow-hidden w-full lg:w-1/2 bg-gradient-to-br from-[#072C68] via-[#0A387E] to-[#0D47A1] p-8 sm:p-12 items-center justify-center">
+        <div className="flex flex-col justify-between overflow-hidden w-full lg:w-1/2 bg-gradient-to-br from-[#072C68] via-[#0A387E] to-[#0D47A1] items-center justify-center">
           <img
             src="https://portal.igotkarmayogi.gov.in/assets/instances/eagle/banners/home/9/Sticky%20Notes.png"
             alt="signup banner"
-            className="h-full max-h-[640px] w-auto object-contain rounded-2xl shadow-xl"
+            className="h-full object-cover"
           />
         </div>
 
@@ -81,7 +83,7 @@ const RegisterView = ({ onSuccess, onSwitchToLogin, onGoHome, initialEmail = '' 
            ========================================================================= */}
         <div className="lg:w-1/2 p-8 sm:p-12 lg:p-16 flex flex-col justify-center bg-white">
           <div className="max-w-md w-full mx-auto space-y-6">
-            
+
             {/* Header with Back Arrow */}
             <div className="flex items-center gap-3">
               <button
@@ -232,7 +234,7 @@ const RegisterView = ({ onSuccess, onSwitchToLogin, onGoHome, initialEmail = '' 
               <span>Already have an account? </span>
               <button
                 type="button"
-                onClick={onSwitchToLogin}
+                onClick={() => navigate("/login")}
                 className="font-bold text-[#0073BC] hover:underline cursor-pointer"
               >
                 Sign in here

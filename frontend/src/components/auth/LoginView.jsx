@@ -83,7 +83,7 @@ const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice, in
           <img
             src="https://portal.igotkarmayogi.gov.in/auth/resources/h8uo2/login/sunbird/img/How_to_Login_V2.png"
             alt="login process"
-            className="h-full object-cover max-h-[680px] mx-auto rounded-xl shadow-lg"
+            className="h-full object-cover"
           />
         </div>
 
