@@ -14,7 +14,13 @@ import {
 } from '@remixicon/react';
 import { API_BASE_URL } from '../../config';
 
-const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBackToCatalog }) => {
+const CumulativeGrowthDashboard = ({
+  currentUser,
+  onSelectPastSubmission,
+  onSelectSubmission,
+  onBackToCatalog,
+  onBack
+}) => {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -107,7 +113,7 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
 
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button
-            onClick={onBackToCatalog}
+            onClick={onBackToCatalog || onBack}
             className="text-xs text-gray-600 hover:text-gray-900 font-semibold px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer"
           >
             ← Back to Catalog
@@ -308,8 +314,11 @@ const CumulativeGrowthDashboard = ({ currentUser, onSelectPastSubmission, onBack
                   <td className="px-6 py-3.5 text-gray-500">{new Date(sub.createdAt).toLocaleString()}</td>
                   <td className="px-6 py-3.5 text-right font-semibold">
                     <button
-                      onClick={() => onSelectPastSubmission(sub)}
-                      className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                      onClick={() => {
+                        const fn = onSelectSubmission || onSelectPastSubmission;
+                        if (fn) fn(sub);
+                      }}
+                      className="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
                     >
                       View Report →
                     </button>

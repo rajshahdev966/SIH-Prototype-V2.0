@@ -315,20 +315,49 @@ function QuizPage({ currentUser, onQuizComplete }) {
 function ResultPage({ activeSubmission, activeProfile }) {
   const navigate = useNavigate();
 
-  if (!activeSubmission || !activeProfile) {
-    return <Navigate to="/" replace />;
+  const submission = activeSubmission || (() => {
+    try {
+      const s = sessionStorage.getItem('sih_active_submission');
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  })();
+
+  const profile = activeProfile || (() => {
+    try {
+      const p = sessionStorage.getItem('sih_active_profile');
+      return p ? JSON.parse(p) : null;
+    } catch { return null; }
+  })();
+
+  if (!submission || !profile) {
+    return (
+      <div className="max-w-4xl mx-auto py-16 px-4 text-center">
+        <div className="p-8 bg-white rounded-2xl border border-gray-200 shadow-sm max-w-lg mx-auto">
+          <h3 className="text-base font-bold text-gray-800 mb-2">No Active Assessment Report Selected</h3>
+          <p className="text-xs text-gray-500 mb-6">
+            Please select an assessment from your Growth Analytics ledger to view its AI competency evaluation.
+          </p>
+          <button
+            onClick={() => navigate('/growth')}
+            className="bg-[#0B5C9E] hover:bg-[#0A387E] text-white font-bold text-xs px-6 py-2.5 rounded-xl cursor-pointer transition-colors"
+          >
+            ← Go to Growth Analytics Ledger
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <AnalysisDashboard
-        submission={activeSubmission}
-        profile={activeProfile}
+        submission={submission}
+        profile={profile}
         onBackToCatalog={() => navigate('/')}
         onViewHistory={() => navigate('/growth')}
         onRetake={() => {
-          if (activeSubmission.courseId) {
-            navigate(`/quiz/${activeSubmission.courseId}`);
+          if (submission.courseId) {
+            navigate(`/quiz/${submission.courseId}`);
           }
         }}
       />
@@ -362,8 +391,13 @@ function GrowthPage({ currentUser, onSelectSubmission }) {
         currentUser={currentUser}
         onRequireAuth={() => navigate('/login')}
         onBack={() => navigate('/')}
+        onBackToCatalog={() => navigate('/courses')}
+        onSelectPastSubmission={(submission) => {
+          if (onSelectSubmission) onSelectSubmission(submission);
+          navigate('/result');
+        }}
         onSelectSubmission={(submission) => {
-          onSelectSubmission(submission);
+          if (onSelectSubmission) onSelectSubmission(submission);
           navigate('/result');
         }}
       />
@@ -482,8 +516,22 @@ function App() {
   // Courses & Data State
   const [courses, setCourses] = useState([]);
   const [caseStudies, setCaseStudies] = useState([]);
-  const [activeSubmission, setActiveSubmission] = useState(null);
-  const [activeProfile, setActiveProfile] = useState(null);
+  const [activeSubmission, setActiveSubmission] = useState(() => {
+    try {
+      const s = sessionStorage.getItem('sih_active_submission');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [activeProfile, setActiveProfile] = useState(() => {
+    try {
+      const p = sessionStorage.getItem('sih_active_profile');
+      return p ? JSON.parse(p) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loadingCourses, setLoadingCourses] = useState(false);
 
   useEffect(() => {
@@ -557,6 +605,10 @@ function App() {
       const data = await coursesApi.submitQuiz(courseId, payload);
       setActiveProfile(data.profile);
       setActiveSubmission(data.submission);
+      try {
+        sessionStorage.setItem('sih_active_submission', JSON.stringify(data.submission));
+        sessionStorage.setItem('sih_active_profile', JSON.stringify(data.profile));
+      } catch (e) {}
       fetchPublishedCourses();
       navigate('/result');
     } catch (err) {
@@ -566,8 +618,16 @@ function App() {
   };
 
   const handleSelectPastSubmission = (submission) => {
+    if (!submission) return;
+    const profile = submission.profile || {};
     setActiveSubmission(submission);
-    setActiveProfile(submission.profile);
+    setActiveProfile(profile);
+    try {
+      sessionStorage.setItem('sih_active_submission', JSON.stringify(submission));
+      sessionStorage.setItem('sih_active_profile', JSON.stringify(profile));
+    } catch (e) {
+      console.warn('Session save note:', e);
+    }
   };
 
   return (
