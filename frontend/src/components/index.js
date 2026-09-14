@@ -1,5 +1,7 @@
 // Common Reusable UI
 export { default as Navbar } from './common/Navbar';
+export { default as Footer } from './common/Footer';
+export { default as DeveloperFooter } from './common/DeveloperFooter';
 export { default as LoadingState } from './common/LoadingState';
 
 // Landing Page Components (first_page.png)

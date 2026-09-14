@@ -4,6 +4,8 @@ import { RiAlertLine } from '@remixicon/react';
 import { coursesApi, caseStudiesApi } from './api';
 import {
   Navbar,
+  Footer,
+  DeveloperFooter,
   HeroSection,
   MetricStatsBar,
   NationalGovernanceGrid,
@@ -43,6 +45,8 @@ function LearnerLayout({ currentUser, onLogout }) {
       <main className="flex-1 w-full">
         <Outlet />
       </main>
+      <Footer />
+      <DeveloperFooter />
     </div>
   );
 }
@@ -421,16 +425,19 @@ function LoginPage({ currentUser, onAuthSuccess }) {
   const initialEmail = location.state?.email || '';
 
   return (
-    <LoginView
-      intendedNotice={notice}
-      initialEmail={initialEmail}
-      onSuccess={(user) => {
-        onAuthSuccess(user);
-        navigate(returnTo, { replace: true });
-      }}
-      onSwitchToRegister={(typedEmail) => navigate('/register', { state: { ...location.state, email: typedEmail || initialEmail } })}
-      onGoHome={() => navigate('/')}
-    />
+    <div className="min-h-screen flex flex-col justify-between">
+      <LoginView
+        intendedNotice={notice}
+        initialEmail={initialEmail}
+        onSuccess={(user) => {
+          onAuthSuccess(user);
+          navigate(returnTo, { replace: true });
+        }}
+        onSwitchToRegister={(typedEmail) => navigate('/register', { state: { ...location.state, email: typedEmail || initialEmail } })}
+        onGoHome={() => navigate('/')}
+      />
+      <DeveloperFooter />
+    </div>
   );
 }
 
@@ -449,15 +456,18 @@ function RegisterPage({ currentUser, onAuthSuccess }) {
   const initialEmail = location.state?.email || '';
 
   return (
-    <RegisterView
-      initialEmail={initialEmail}
-      onSuccess={(user) => {
-        onAuthSuccess(user);
-        navigate(returnTo, { replace: true });
-      }}
-      onSwitchToLogin={(typedEmail) => navigate('/login', { state: { ...location.state, email: typedEmail || initialEmail } })}
-      onGoHome={() => navigate('/')}
-    />
+    <div className="min-h-screen flex flex-col justify-between">
+      <RegisterView
+        initialEmail={initialEmail}
+        onSuccess={(user) => {
+          onAuthSuccess(user);
+          navigate(returnTo, { replace: true });
+        }}
+        onSwitchToLogin={(typedEmail) => navigate('/login', { state: { ...location.state, email: typedEmail || initialEmail } })}
+        onGoHome={() => navigate('/')}
+      />
+      <DeveloperFooter />
+    </div>
   );
 }
 
@@ -470,22 +480,28 @@ function AdminRoute({ adminToken, adminUser, onLoginSuccess, onLogout, onCourses
   // If not authenticated as admin, show Admin Login (without learner Navbar)
   if (!adminToken) {
     return (
-      <AdminLogin
-        onLoginSuccess={onLoginSuccess}
-        onGoHome={() => navigate('/')}
-      />
+      <div className="min-h-screen flex flex-col justify-between">
+        <AdminLogin
+          onLoginSuccess={onLoginSuccess}
+          onGoHome={() => navigate('/')}
+        />
+        <DeveloperFooter />
+      </div>
     );
   }
 
   // If authenticated as admin, show Admin Portal (without learner Navbar)
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 sm:p-6 lg:p-8">
-      <AdminPortal
-        adminUser={adminUser}
-        adminToken={adminToken}
-        onLogout={onLogout}
-        onCoursesChange={onCoursesChange}
-      />
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col justify-between">
+      <div className="p-4 sm:p-6 lg:p-8 flex-1">
+        <AdminPortal
+          adminUser={adminUser}
+          adminToken={adminToken}
+          onLogout={onLogout}
+          onCoursesChange={onCoursesChange}
+        />
+      </div>
+      <DeveloperFooter />
     </div>
   );
 }
