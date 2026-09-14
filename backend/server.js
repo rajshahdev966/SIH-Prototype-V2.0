@@ -15,6 +15,25 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Health Check & Root Ping (Required for Render & Cloud Monitoring)
+app.get('/', (req, res) => {
+    res.json({
+        status: 'online',
+        service: 'iGOT Karmayogi Bharat Backend API',
+        version: '2.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/health', async (req, res) => {
+    try {
+        const stats = await db.getDatabaseStats();
+        res.json({ status: 'healthy', database: stats });
+    } catch (e) {
+        res.status(500).json({ status: 'unhealthy', error: e.message });
+    }
+});
+
 // ==========================================
 // Security Middleware: Strict Admin Auth
 // ==========================================
