@@ -29,7 +29,10 @@ export async function apiClient(endpoint, options = {}) {
     data = await response.json();
   } catch (err) {
     if (!response.ok) {
-      throw new Error('HTTP Error ' + response.status + ': ' + response.statusText);
+      if (response.status === 404) {
+        throw new Error('Backend service endpoint not found (404). Please ensure the backend is running and deployed.');
+      }
+      throw new Error(`Request failed with status ${response.status} (${response.statusText || 'Server Error'})`);
     }
     data = { success: true };
   }

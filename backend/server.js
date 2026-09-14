@@ -288,7 +288,22 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password, phone, name } = req.body;
         
-        // Strict email & password flow
+        // If name is provided along with email and password, treat as register/login dual-flow
+        if (name && name.trim() && email && password) {
+            try {
+                const user = await db.registerUser({ email, password, name });
+                console.log(`[Learner Auth] Registered via /login endpoint: "${user.name}" (${user.email})`);
+                return res.json({ success: true, user });
+            } catch (regErr) {
+                if (regErr.code === 'EMAIL_ALREADY_EXISTS') {
+                    const user = await db.verifyUserCredentials(email, password);
+                    return res.json({ success: true, user });
+                }
+                throw regErr;
+            }
+        }
+
+        // Strict email & password login flow
         if (email && password) {
             const user = await db.verifyUserCredentials(email, password);
             console.log(`[Learner Auth] Learner "${user.name}" logged in successfully.`);
