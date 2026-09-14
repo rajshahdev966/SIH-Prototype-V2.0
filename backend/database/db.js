@@ -1,19 +1,33 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const Database = require('better-sqlite3');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+const connectionString = process.env.DATABASE_URL || process.env.DATABASE_EXTERNAL_URL;
+const isPg = Boolean(connectionString && connectionString.trim());
+
+let pgPool = null;
+let sqliteDb = null;
+
 const DB_DIR = path.join(__dirname);
-if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-}
-
 const DB_PATH = path.join(DB_DIR, 'sih_portal.db');
-const db = new Database(DB_PATH);
 
-// Enable WAL mode for high concurrency
-db.pragma('journal_mode = WAL');
+if (isPg) {
+    const { Pool } = require('pg');
+    pgPool = new Pool({
+        connectionString: connectionString.trim(),
+        ssl: { rejectUnauthorized: false }
+    });
+    console.log('[Database] Using Cloud PostgreSQL (Render Persistent DB)');
+} else {
+    const Database = require('better-sqlite3');
+    if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+    sqliteDb = new Database(DB_PATH);
+    sqliteDb.pragma('journal_mode = WAL');
+    console.log('[Database] Using Local SQLite:', DB_PATH);
+}
 
 // Password hashing utility using SHA-256 with salt
 const DEFAULT_SALT = process.env.ADMIN_PASSWORD_SALT || 'sih_igot_salt_2026';
@@ -21,215 +35,313 @@ function hashPassword(password, salt = DEFAULT_SALT) {
     return crypto.createHash('sha256').update(password + salt).digest('hex');
 }
 
+let initPromise = null;
+function ensureInitialized() {
+    if (!initPromise) {
+        initPromise = initDb().catch(err => {
+            console.error('[Database Init Error]:', err.message);
+            initPromise = null;
+            throw err;
+        });
+    }
+    return initPromise;
+}
+
+// Unified Query Execution Helpers
+async function rawQueryOne(sql, params = []) {
+    if (isPg) {
+        let pIdx = 1;
+        const pgSql = sql.replace(/\?/g, () => `$${pIdx++}`);
+        const res = await pgPool.query(pgSql, params);
+        return res.rows[0] || null;
+    } else {
+        const row = sqliteDb.prepare(sql).get(...params);
+        return row || null;
+    }
+}
+
+async function rawQueryAll(sql, params = []) {
+    if (isPg) {
+        let pIdx = 1;
+        const pgSql = sql.replace(/\?/g, () => `$${pIdx++}`);
+        const res = await pgPool.query(pgSql, params);
+        return res.rows;
+    } else {
+        return sqliteDb.prepare(sql).all(...params);
+    }
+}
+
+async function rawExecute(sql, params = []) {
+    if (isPg) {
+        let pIdx = 1;
+        const pgSql = sql.replace(/\?/g, () => `$${pIdx++}`);
+        const res = await pgPool.query(pgSql, params);
+        return { changes: res.rowCount };
+    } else {
+        const info = sqliteDb.prepare(sql).run(...params);
+        return { changes: info.changes };
+    }
+}
+
+async function queryOne(sql, params = []) {
+    await ensureInitialized();
+    return rawQueryOne(sql, params);
+}
+
+async function queryAll(sql, params = []) {
+    await ensureInitialized();
+    return rawQueryAll(sql, params);
+}
+
+async function execute(sql, params = []) {
+    await ensureInitialized();
+    return rawExecute(sql, params);
+}
+
+const INITIAL_CASE_STUDIES = [
+    {
+        id: 'cs_gail_revival',
+        title: "Turning Around a Stranded Asset : GAIL's Revival of the JBF PTA Plant",
+        author: "Capacity Building Commission",
+        categories_json: JSON.stringify(["Commerce and Industries"]),
+        duration: "1h",
+        summary: "A detailed governance case study exploring how public sector leadership, strategic restructuring, and inter-ministerial coordination revived the stranded JBF PTA petrochemical facility under GAIL.",
+        lessons_json: JSON.stringify([
+            "Asset turnaround via public sector strategic intervention",
+            "Regulatory approvals and inter-departmental synergy",
+            "Safeguarding industrial employment and sovereign value creation"
+        ]),
+        status: 'published'
+    },
+    {
+        id: 'cs_assam_forest',
+        title: "Forest Landscapes of Assam: Forging Livelihoods and Natural Wealth",
+        author: "Capacity Building Commission",
+        categories_json: JSON.stringify(["Environment", "Agriculture and Natural Resources"]),
+        duration: "1h 30m",
+        summary: "An in-depth study of community-centric afforestation, non-timber forest produce (NTFP) value chains, and eco-tourism livelihoods across the Brahmaputra valley.",
+        lessons_json: JSON.stringify([
+            "Co-management models with indigenous forest dwelling communities",
+            "Sustainable harvest standards and direct market linkages",
+            "Biodiversity preservation coupled with rural prosperity"
+        ]),
+        status: 'published'
+    },
+    {
+        id: 'cs_karnataka_urban',
+        title: "Digital Shift in Urban Accounting : Karnataka's Municipal Finance",
+        author: "Capacity Building Commission",
+        categories_json: JSON.stringify(["Science, Technology, and Innovation", "Governance"]),
+        duration: "2h",
+        summary: "Analyzing Karnataka's pioneering double-entry digital accounting transformation across Urban Local Bodies (ULBs) for transparent fund tracking and credit rating readiness.",
+        lessons_json: JSON.stringify([
+            "Transitioning ULBs from cash-basis to accrual accounting systems",
+            "Real-time municipal dashboard deployment and audit trail automation",
+            "Unlocking municipal bond issuances and infrastructure investments"
+        ]),
+        status: 'published'
+    },
+    {
+        id: 'cs_malapur_transformation',
+        title: "From Darkness to Dignity: Transformation of Malapur",
+        author: "Capacity Building Commission",
+        categories_json: JSON.stringify(["Governance", "Governance and Public Administration"]),
+        duration: "1h",
+        summary: "Field-level administrative leadership transforming an underserved hamlet through integrated water supply, sanitation saturation, and solar electrification.",
+        lessons_json: JSON.stringify([
+            "Gram Panchayat saturation drives through district convergence",
+            "Grassroots social audits and behavioral nudges",
+            "Monitoring public infrastructure lifecycle sustainability"
+        ]),
+        status: 'published'
+    }
+];
+
+const ALL_TABLES_SQL = `
+    CREATE TABLE IF NOT EXISTS admins (
+        username TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+        token TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        created_at TEXT,
+        expires_at TEXT,
+        FOREIGN KEY (username) REFERENCES admins (username) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+        phone TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS courses (
+        course_id TEXT PRIMARY KEY,
+        title TEXT,
+        author TEXT DEFAULT 'Karmayogi Bharat',
+        category TEXT DEFAULT 'Course',
+        duration TEXT DEFAULT '30m',
+        master_summary TEXT,
+        status TEXT DEFAULT 'published',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS mcqs (
+        course_id TEXT PRIMARY KEY,
+        mcqs_json TEXT,
+        count INTEGER,
+        created_at TEXT,
+        FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS submissions (
+        id TEXT PRIMARY KEY,
+        course_id TEXT,
+        phone TEXT,
+        learner_name TEXT,
+        score TEXT,
+        score_percentage REAL,
+        details_json TEXT,
+        profile_json TEXT,
+        created_at TEXT,
+        FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE,
+        FOREIGN KEY (phone) REFERENCES users (phone) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS cumulative_analyses (
+        phone TEXT PRIMARY KEY,
+        profile_json TEXT,
+        tests_analyzed INTEGER,
+        updated_at TEXT,
+        FOREIGN KEY (phone) REFERENCES users (phone) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS case_studies (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        author TEXT DEFAULT 'Capacity Building Commission',
+        categories_json TEXT,
+        duration TEXT DEFAULT '1h',
+        summary TEXT,
+        lessons_json TEXT,
+        status TEXT DEFAULT 'published',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_submissions_course ON submissions(course_id);
+    CREATE INDEX IF NOT EXISTS idx_submissions_phone ON submissions(phone);
+`;
+
 // Initialize Schema
-function initDb() {
-    db.exec(`
-        -- Admins Table
-        CREATE TABLE IF NOT EXISTS admins (
-            username TEXT PRIMARY KEY,
-            email TEXT NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at TEXT
-        );
-
-        -- Admin Sessions Table
-        CREATE TABLE IF NOT EXISTS admin_sessions (
-            token TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
-            created_at TEXT,
-            expires_at TEXT,
-            FOREIGN KEY (username) REFERENCES admins (username) ON DELETE CASCADE
-        );
-
-        -- Users Table (Learners)
-        CREATE TABLE IF NOT EXISTS users (
-            phone TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL,
-            created_at TEXT
-        );
-
-        -- Courses Table
-        CREATE TABLE IF NOT EXISTS courses (
-            course_id TEXT PRIMARY KEY,
-            title TEXT,
-            master_summary TEXT,
-            status TEXT DEFAULT 'published',
-            created_at TEXT,
-            updated_at TEXT
-        );
-
-        -- MCQs Table
-        CREATE TABLE IF NOT EXISTS mcqs (
-            course_id TEXT PRIMARY KEY,
-            mcqs_json TEXT,
-            count INTEGER,
-            created_at TEXT,
-            FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE
-        );
-
-        -- Submissions Table
-        CREATE TABLE IF NOT EXISTS submissions (
-            id TEXT PRIMARY KEY,
-            course_id TEXT,
-            phone TEXT,
-            learner_name TEXT,
-            score TEXT,
-            score_percentage REAL,
-            details_json TEXT,
-            profile_json TEXT,
-            created_at TEXT,
-            FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE,
-            FOREIGN KEY (phone) REFERENCES users (phone) ON DELETE SET NULL
-        );
-
-        -- Cumulative Analyses Table
-        CREATE TABLE IF NOT EXISTS cumulative_analyses (
-            phone TEXT PRIMARY KEY,
-            profile_json TEXT,
-            tests_analyzed INTEGER,
-            updated_at TEXT,
-            FOREIGN KEY (phone) REFERENCES users (phone) ON DELETE CASCADE
-        );
-
-        -- Case Studies Table (Amrit Gyaan Kosh)
-        CREATE TABLE IF NOT EXISTS case_studies (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            author TEXT DEFAULT 'Capacity Building Commission',
-            categories_json TEXT,
-            duration TEXT DEFAULT '1h',
-            summary TEXT,
-            lessons_json TEXT,
-            status TEXT DEFAULT 'published',
-            created_at TEXT,
-            updated_at TEXT
-        );
-
-        -- Indices
-        CREATE INDEX IF NOT EXISTS idx_submissions_course ON submissions(course_id);
-        CREATE INDEX IF NOT EXISTS idx_submissions_phone ON submissions(phone);
-    `);
-
-    // Automatic Column Migrations
-    try {
-        const subCols = db.prepare("PRAGMA table_info(submissions)").all().map(c => c.name);
-        if (!subCols.includes('phone')) {
-            db.exec("ALTER TABLE submissions ADD COLUMN phone TEXT;");
-        }
-        const courseCols = db.prepare("PRAGMA table_info(courses)").all().map(c => c.name);
-        if (!courseCols.includes('status')) {
-            db.exec("ALTER TABLE courses ADD COLUMN status TEXT DEFAULT 'published';");
-        }
-        if (!courseCols.includes('author')) {
-            db.exec("ALTER TABLE courses ADD COLUMN author TEXT DEFAULT 'Karmayogi Bharat';");
-        }
-        if (!courseCols.includes('category')) {
-            db.exec("ALTER TABLE courses ADD COLUMN category TEXT DEFAULT 'Course';");
-        }
-        if (!courseCols.includes('duration')) {
-            db.exec("ALTER TABLE courses ADD COLUMN duration TEXT DEFAULT '30m';");
-        }
-    } catch (migErr) {
-        console.warn('Migration note:', migErr.message);
+async function initDb() {
+    if (isPg) {
+        await pgPool.query(ALL_TABLES_SQL);
+    } else {
+        sqliteDb.exec(ALL_TABLES_SQL);
     }
 
     // Seed Initial Root Admin if none exists
-    const adminCount = db.prepare('SELECT COUNT(*) as count FROM admins').get().count;
+    const adminCountRow = await rawQueryOne('SELECT COUNT(*) as count FROM admins');
+    const adminCount = parseInt(adminCountRow?.count || '0', 10);
     if (adminCount === 0) {
         const initialUser = (process.env.ADMIN_INITIAL_USER || 'admin').trim();
         const initialPass = process.env.ADMIN_INITIAL_PASSWORD || 'iGOT@Admin2026';
         const initialEmail = process.env.ADMIN_INITIAL_EMAIL || (initialUser + '@igot.gov.in');
         const initialPassHash = hashPassword(initialPass);
-        db.prepare('INSERT INTO admins (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)')
-          .run(initialUser, initialEmail, initialPassHash, new Date().toISOString());
-        console.log('[Security] Initial root admin initialized from environment: username=' + initialUser);
+        await rawExecute('INSERT INTO admins (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)',
+            [initialUser, initialEmail, initialPassHash, new Date().toISOString()]);
+        console.log('[Security] Initial root admin initialized: username=' + initialUser);
     }
 
     // Seed Initial Amrit Gyaan Kosh Case Studies if none exist
-    const caseCount = db.prepare('SELECT COUNT(*) as count FROM case_studies').get().count;
+    const caseCountRow = await rawQueryOne('SELECT COUNT(*) as count FROM case_studies');
+    const caseCount = parseInt(caseCountRow?.count || '0', 10);
     if (caseCount === 0) {
-        const initialCaseStudies = [
-            {
-                id: 'cs_gail_revival',
-                title: "Turning Around a Stranded Asset : GAIL's Revival of the JBF PTA Plant",
-                author: "Capacity Building Commission",
-                categories_json: JSON.stringify(["Commerce and Industries"]),
-                duration: "1h",
-                summary: "A detailed governance case study exploring how public sector leadership, strategic restructuring, and inter-ministerial coordination revived the stranded JBF PTA petrochemical facility under GAIL.",
-                lessons_json: JSON.stringify([
-                    "Asset turnaround via public sector strategic intervention",
-                    "Regulatory approvals and inter-departmental synergy",
-                    "Safeguarding industrial employment and sovereign value creation"
-                ]),
-                status: 'published'
-            },
-            {
-                id: 'cs_assam_forest',
-                title: "Forest Landscapes of Assam: Forging Livelihoods and Natural Wealth",
-                author: "Capacity Building Commission",
-                categories_json: JSON.stringify(["Environment", "Agriculture and Natural Resources"]),
-                duration: "1h 30m",
-                summary: "An in-depth study of community-centric afforestation, non-timber forest produce (NTFP) value chains, and eco-tourism livelihoods across the Brahmaputra valley.",
-                lessons_json: JSON.stringify([
-                    "Co-management models with indigenous forest dwelling communities",
-                    "Sustainable harvest standards and direct market linkages",
-                    "Biodiversity preservation coupled with rural prosperity"
-                ]),
-                status: 'published'
-            },
-            {
-                id: 'cs_karnataka_urban',
-                title: "Digital Shift in Urban Accounting : Karnataka's Municipal Finance",
-                author: "Capacity Building Commission",
-                categories_json: JSON.stringify(["Science, Technology, and Innovation", "Governance"]),
-                duration: "2h",
-                summary: "Analyzing Karnataka's pioneering double-entry digital accounting transformation across Urban Local Bodies (ULBs) for transparent fund tracking and credit rating readiness.",
-                lessons_json: JSON.stringify([
-                    "Transitioning ULBs from cash-basis to accrual accounting systems",
-                    "Real-time municipal dashboard deployment and audit trail automation",
-                    "Unlocking municipal bond issuances and infrastructure investments"
-                ]),
-                status: 'published'
-            },
-            {
-                id: 'cs_malapur_transformation',
-                title: "From Darkness to Dignity: Transformation of Malapur",
-                author: "Capacity Building Commission",
-                categories_json: JSON.stringify(["Governance", "Governance and Public Administration"]),
-                duration: "1h",
-                summary: "Field-level administrative leadership transforming an underserved hamlet through integrated water supply, sanitation saturation, and solar electrification.",
-                lessons_json: JSON.stringify([
-                    "Gram Panchayat saturation drives through district convergence",
-                    "Grassroots social audits and behavioral nudges",
-                    "Monitoring public infrastructure lifecycle sustainability"
-                ]),
-                status: 'published'
-            }
-        ];
-
-        const insertCase = db.prepare(`
-            INSERT INTO case_studies (id, title, author, categories_json, duration, summary, lessons_json, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
         const now = new Date().toISOString();
-        for (const cs of initialCaseStudies) {
-            insertCase.run(cs.id, cs.title, cs.author, cs.categories_json, cs.duration, cs.summary, cs.lessons_json, cs.status, now, now);
+        for (const cs of INITIAL_CASE_STUDIES) {
+            await rawExecute(`
+                INSERT INTO case_studies (id, title, author, categories_json, duration, summary, lessons_json, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [cs.id, cs.title, cs.author, cs.categories_json, cs.duration, cs.summary, cs.lessons_json, cs.status, now, now]);
         }
         console.log('[Database] Seeded 4 initial Amrit Gyaan Kosh case studies.');
     }
+
+    // Migration from local SQLite into PostgreSQL (runs once if Postgres has 0 courses and local SQLite exists)
+    if (isPg && fs.existsSync(DB_PATH)) {
+        try {
+            const coursesCountRow = await rawQueryOne('SELECT COUNT(*) as count FROM courses');
+            const pgCourseCount = parseInt(coursesCountRow?.count || '0', 10);
+
+            if (pgCourseCount === 0) {
+                console.log('[Migration] Migrating courses and MCQs from local SQLite to PostgreSQL...');
+                const Database = require('better-sqlite3');
+                const localDb = new Database(DB_PATH);
+
+                const localCourses = localDb.prepare('SELECT * FROM courses').all();
+                for (const c of localCourses) {
+                    await rawExecute(`
+                        INSERT INTO courses (course_id, title, author, category, duration, master_summary, status, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(course_id) DO NOTHING
+                    `, [c.course_id, c.title, c.author || 'Karmayogi Bharat', c.category || 'Course', c.duration || '30m', c.master_summary || '', c.status || 'published', c.created_at, c.updated_at]);
+
+                    const localMcq = localDb.prepare('SELECT * FROM mcqs WHERE course_id = ?').get(c.course_id);
+                    if (localMcq) {
+                        await rawExecute(`
+                            INSERT INTO mcqs (course_id, mcqs_json, count, created_at)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(course_id) DO UPDATE SET mcqs_json = excluded.mcqs_json, count = excluded.count
+                        `, [c.course_id, localMcq.mcqs_json, localMcq.count || 0, localMcq.created_at]);
+                    }
+                }
+
+                // Migrate local users
+                const localUsers = localDb.prepare('SELECT * FROM users').all();
+                for (const u of localUsers) {
+                    await rawExecute(`
+                        INSERT INTO users (phone, name, email, created_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(phone) DO NOTHING
+                    `, [u.phone, u.name, u.email, u.created_at]);
+                }
+
+                // Migrate local submissions
+                const localSubs = localDb.prepare('SELECT * FROM submissions').all();
+                for (const s of localSubs) {
+                    await rawExecute(`
+                        INSERT INTO submissions (id, course_id, phone, learner_name, score, score_percentage, details_json, profile_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO NOTHING
+                    `, [s.id, s.course_id, s.phone, s.learner_name, s.score, s.score_percentage, s.details_json, s.profile_json, s.created_at]);
+                }
+
+                localDb.close();
+                console.log(`[Migration] Successfully transferred ${localCourses.length} courses, ${localUsers.length} users, and ${localSubs.length} submissions to PostgreSQL!`);
+            }
+        } catch (migErr) {
+            console.warn('[Migration Warning]:', migErr.message);
+        }
+    }
 }
 
-initDb();
+// Start async initialization
+ensureInitialized();
 
 // ==========================================
 // Admin Authentication & Administration
 // ==========================================
 
-function verifyAdminCredentials(username, password) {
+async function verifyAdminCredentials(username, password) {
     if (!username || !password) return null;
-    const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username.trim());
+    const admin = await queryOne('SELECT * FROM admins WHERE username = ?', [username.trim()]);
     if (!admin) return null;
 
     const hash = hashPassword(password);
@@ -238,44 +350,44 @@ function verifyAdminCredentials(username, password) {
     return { username: admin.username, email: admin.email, createdAt: admin.created_at };
 }
 
-function createAdminSession(username) {
+async function createAdminSession(username) {
     const token = 'adm_' + crypto.randomBytes(32).toString('hex');
     const now = new Date();
     const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    db.prepare('INSERT INTO admin_sessions (token, username, created_at, expires_at) VALUES (?, ?, ?, ?)')
-      .run(token, username, now.toISOString(), expires.toISOString());
+    await execute('INSERT INTO admin_sessions (token, username, created_at, expires_at) VALUES (?, ?, ?, ?)',
+        [token, username, now.toISOString(), expires.toISOString()]);
 
     return token;
 }
 
-function validateAdminSession(token) {
+async function validateAdminSession(token) {
     if (!token) return null;
     const cleanToken = token.replace('Bearer ', '').trim();
-    const session = db.prepare(`
+    const session = await queryOne(`
         SELECT s.token, s.username, s.expires_at, a.email
         FROM admin_sessions s
         JOIN admins a ON s.username = a.username
         WHERE s.token = ?
-    `).get(cleanToken);
+    `, [cleanToken]);
 
     if (!session) return null;
     if (new Date(session.expires_at) < new Date()) {
-        db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(cleanToken);
+        await execute('DELETE FROM admin_sessions WHERE token = ?', [cleanToken]);
         return null;
     }
 
     return { username: session.username, email: session.email };
 }
 
-function revokeAdminSession(token) {
+async function revokeAdminSession(token) {
     if (!token) return;
     const cleanToken = token.replace('Bearer ', '').trim();
-    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(cleanToken);
+    await execute('DELETE FROM admin_sessions WHERE token = ?', [cleanToken]);
 }
 
-function updateAdminProfile(username, { email, password }) {
-    const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username);
+async function updateAdminProfile(username, { email, password }) {
+    const admin = await queryOne('SELECT * FROM admins WHERE username = ?', [username]);
     if (!admin) throw new Error('Admin not found');
 
     const newEmail = email ? email.trim().toLowerCase() : admin.email;
@@ -284,69 +396,69 @@ function updateAdminProfile(username, { email, password }) {
         newHash = hashPassword(password.trim());
     }
 
-    db.prepare('UPDATE admins SET email = ?, password_hash = ? WHERE username = ?')
-      .run(newEmail, newHash, username);
+    await execute('UPDATE admins SET email = ?, password_hash = ? WHERE username = ?',
+        [newEmail, newHash, username]);
 
     return { username, email: newEmail };
 }
 
-function createNewAdmin({ username, email, password }) {
+async function createNewAdmin({ username, email, password }) {
     if (!username || !email || !password) {
         throw new Error('Username, email, and password are required');
     }
     const cleanUser = username.trim();
     const cleanEmail = email.trim().toLowerCase();
     
-    const existing = db.prepare('SELECT * FROM admins WHERE username = ?').get(cleanUser);
+    const existing = await queryOne('SELECT * FROM admins WHERE username = ?', [cleanUser]);
     if (existing) throw new Error(`Admin with username "${cleanUser}" already exists`);
 
     const hash = hashPassword(password.trim());
-    db.prepare('INSERT INTO admins (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)')
-      .run(cleanUser, cleanEmail, hash, new Date().toISOString());
+    await execute('INSERT INTO admins (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)',
+        [cleanUser, cleanEmail, hash, new Date().toISOString()]);
 
     return { username: cleanUser, email: cleanEmail };
 }
 
-function getAllAdmins() {
-    return db.prepare('SELECT username, email, created_at FROM admins ORDER BY created_at ASC').all();
+async function getAllAdmins() {
+    return await queryAll('SELECT username, email, created_at FROM admins ORDER BY created_at ASC');
 }
 
 // ==========================================
 // User Authentication (Learners)
 // ==========================================
 
-function findOrCreateUser({ phone, name, email }) {
+async function findOrCreateUser({ phone, name, email }) {
     if (!phone) throw new Error('Phone number is required');
     const cleanPhone = phone.trim();
     const cleanName = (name || 'Learner').trim();
     const cleanEmail = (email || '').trim().toLowerCase();
     const now = new Date().toISOString();
 
-    const existing = db.prepare('SELECT * FROM users WHERE phone = ?').get(cleanPhone);
+    const existing = await queryOne('SELECT * FROM users WHERE phone = ?', [cleanPhone]);
     if (existing) {
         if ((cleanName && cleanName !== existing.name) || (cleanEmail && cleanEmail !== existing.email)) {
-            db.prepare('UPDATE users SET name = ?, email = ? WHERE phone = ?')
-              .run(cleanName || existing.name, cleanEmail || existing.email, cleanPhone);
+            await execute('UPDATE users SET name = ?, email = ? WHERE phone = ?',
+                [cleanName || existing.name, cleanEmail || existing.email, cleanPhone]);
         }
-        return db.prepare('SELECT * FROM users WHERE phone = ?').get(cleanPhone);
+        return await queryOne('SELECT * FROM users WHERE phone = ?', [cleanPhone]);
     }
 
-    db.prepare('INSERT INTO users (phone, name, email, created_at) VALUES (?, ?, ?, ?)')
-      .run(cleanPhone, cleanName, cleanEmail, now);
+    await execute('INSERT INTO users (phone, name, email, created_at) VALUES (?, ?, ?, ?)',
+        [cleanPhone, cleanName, cleanEmail, now]);
       
-    return db.prepare('SELECT * FROM users WHERE phone = ?').get(cleanPhone);
+    return await queryOne('SELECT * FROM users WHERE phone = ?', [cleanPhone]);
 }
 
-function getUser(phone) {
-    return db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
+async function getUser(phone) {
+    return await queryOne('SELECT * FROM users WHERE phone = ?', [phone]);
 }
 
 // ==========================================
 // Courses & MCQ Management
 // ==========================================
 
-function getCourse(courseId) {
-    const row = db.prepare('SELECT * FROM courses WHERE course_id = ?').get(courseId);
+async function getCourse(courseId) {
+    const row = await queryOne('SELECT * FROM courses WHERE course_id = ?', [courseId]);
     if (!row) return null;
     return {
         courseId: row.course_id,
@@ -361,7 +473,7 @@ function getCourse(courseId) {
     };
 }
 
-function getAllCourses(includeUnpublished = false) {
+async function getAllCourses(includeUnpublished = false) {
     let sql = `
         SELECT 
             c.course_id,
@@ -383,32 +495,37 @@ function getAllCourses(includeUnpublished = false) {
     }
     sql += ` ORDER BY c.created_at DESC `;
 
-    const rows = db.prepare(sql).all();
-    return rows.map(r => ({
-        courseId: r.course_id,
-        title: r.title || r.course_id,
-        author: r.author || 'Karmayogi Bharat',
-        category: r.category || 'Course',
-        duration: r.duration || (r.mcq_count ? `${r.mcq_count * 2}m` : '30m'),
-        status: r.status || 'published',
-        mcqCount: r.mcq_count || 0,
-        hasMCQs: (r.mcq_count || 0) > 0,
-        submissionCount: r.submission_count || 0,
-        hasSummary: (r.summary_length || 0) > 0,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at
-    }));
+    const rows = await queryAll(sql);
+    return rows.map(r => {
+        const mcqCount = parseInt(r.mcq_count || '0', 10);
+        const submissionCount = parseInt(r.submission_count || '0', 10);
+        const summaryLength = parseInt(r.summary_length || '0', 10);
+        return {
+            courseId: r.course_id,
+            title: r.title || r.course_id,
+            author: r.author || 'Karmayogi Bharat',
+            category: r.category || 'Course',
+            duration: r.duration || (mcqCount ? `${mcqCount * 2}m` : '30m'),
+            status: r.status || 'published',
+            mcqCount: mcqCount,
+            hasMCQs: mcqCount > 0,
+            submissionCount: submissionCount,
+            hasSummary: summaryLength > 0,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at
+        };
+    });
 }
 
-function saveCourse({ courseId, title, author = 'Karmayogi Bharat', category = 'Course', duration = '30m', masterSummary, status = 'published' }) {
+async function saveCourse({ courseId, title, author = 'Karmayogi Bharat', category = 'Course', duration = '30m', masterSummary, status = 'published' }) {
     const now = new Date().toISOString();
-    const existing = getCourse(courseId);
+    const existing = await getCourse(courseId);
     if (existing) {
-        db.prepare(`
+        await execute(`
             UPDATE courses 
             SET title = ?, author = ?, category = ?, duration = ?, master_summary = ?, status = ?, updated_at = ?
             WHERE course_id = ?
-        `).run(
+        `, [
             title || existing.title || courseId,
             author || existing.author || 'Karmayogi Bharat',
             category || existing.category || 'Course',
@@ -417,78 +534,83 @@ function saveCourse({ courseId, title, author = 'Karmayogi Bharat', category = '
             status || existing.status || 'published',
             now,
             courseId
-        );
+        ]);
     } else {
-        db.prepare(`
+        await execute(`
             INSERT INTO courses (course_id, title, author, category, duration, master_summary, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(courseId, title || courseId, author, category, duration, masterSummary || '', status, now, now);
+        `, [courseId, title || courseId, author, category, duration, masterSummary || '', status, now, now]);
     }
-    return getCourse(courseId);
+    return await getCourse(courseId);
 }
 
-function updateCourseAndMCQs(courseId, { title, author, category, duration, masterSummary, mcqs, status = 'published' }) {
+async function updateCourseAndMCQs(courseId, { title, author, category, duration, masterSummary, mcqs, status = 'published' }) {
     const now = new Date().toISOString();
-    const existing = getCourse(courseId);
-    db.transaction(() => {
-        db.prepare(`
-            UPDATE courses 
-            SET title = ?, author = ?, category = ?, duration = ?, master_summary = ?, status = ?, updated_at = ?
-            WHERE course_id = ?
-        `).run(
-            title !== undefined ? title : (existing?.title || courseId),
-            author !== undefined ? author : (existing?.author || 'Karmayogi Bharat'),
-            category !== undefined ? category : (existing?.category || 'Course'),
-            duration !== undefined ? duration : (existing?.duration || '30m'),
-            masterSummary !== undefined ? masterSummary : (existing?.masterSummary || ''),
-            status || 'published',
-            now,
-            courseId
-        );
+    const existing = await getCourse(courseId);
+    
+    await execute(`
+        UPDATE courses 
+        SET title = ?, author = ?, category = ?, duration = ?, master_summary = ?, status = ?, updated_at = ?
+        WHERE course_id = ?
+    `, [
+        title !== undefined ? title : (existing?.title || courseId),
+        author !== undefined ? author : (existing?.author || 'Karmayogi Bharat'),
+        category !== undefined ? category : (existing?.category || 'Course'),
+        duration !== undefined ? duration : (existing?.duration || '30m'),
+        masterSummary !== undefined ? masterSummary : (existing?.masterSummary || ''),
+        status || 'published',
+        now,
+        courseId
+    ]);
 
-        if (Array.isArray(mcqs)) {
-            saveMCQs(courseId, mcqs);
-        }
-    })();
+    if (Array.isArray(mcqs)) {
+        await saveMCQs(courseId, mcqs);
+    }
+
     return {
-        course: getCourse(courseId),
-        mcqs: getMCQs(courseId)
+        course: await getCourse(courseId),
+        mcqs: await getMCQs(courseId)
     };
 }
 
-function getMCQs(courseId) {
-    const row = db.prepare('SELECT * FROM mcqs WHERE course_id = ?').get(courseId);
+async function getMCQs(courseId) {
+    const row = await queryOne('SELECT * FROM mcqs WHERE course_id = ?', [courseId]);
     if (!row || !row.mcqs_json) return null;
     try {
-        return JSON.parse(row.mcqs_json);
+        return typeof row.mcqs_json === 'string' ? JSON.parse(row.mcqs_json) : row.mcqs_json;
     } catch (e) {
         console.error(`Failed to parse MCQs JSON for ${courseId}:`, e);
         return null;
     }
 }
 
-function saveMCQs(courseId, mcqsArray) {
+async function saveMCQs(courseId, mcqsArray) {
     const now = new Date().toISOString();
     const count = Array.isArray(mcqsArray) ? mcqsArray.length : 0;
     const jsonStr = JSON.stringify(mcqsArray);
 
-    db.prepare(`
+    await execute(`
         INSERT INTO mcqs (course_id, mcqs_json, count, created_at)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(course_id) DO UPDATE SET
             mcqs_json = excluded.mcqs_json,
             count = excluded.count,
             created_at = excluded.created_at
-    `).run(courseId, jsonStr, count, now);
+    `, [courseId, jsonStr, count, now]);
 
-    return getMCQs(courseId);
+    return await getMCQs(courseId);
 }
 
 // ==========================================
 // Submissions & Cumulative Analytics
 // ==========================================
 
-function saveSubmission({ id, courseId, phone, learnerName, score, scorePercentage, details, profile }) {
+async function saveSubmission({ id, courseId, phone, learnerName, score, scorePercentage, details, profile }) {
+    const cleanPhone = phone ? phone.trim() : null;
+    if (cleanPhone) {
+        await findOrCreateUser({ phone: cleanPhone, name: learnerName || 'Learner' });
+    }
+
     const subId = id || `sub_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const now = new Date().toISOString();
     
@@ -498,27 +620,27 @@ function saveSubmission({ id, courseId, phone, learnerName, score, scorePercenta
         if (den > 0) calculatedPct = Math.round((num / den) * 100);
     }
 
-    db.prepare(`
+    await execute(`
         INSERT INTO submissions (
             id, course_id, phone, learner_name, score, score_percentage, details_json, profile_json, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
         subId,
         courseId,
-        phone || null,
+        cleanPhone,
         learnerName || 'Anonymous Learner',
         score || '0/0',
         calculatedPct || 0,
         JSON.stringify(details || []),
         JSON.stringify(profile || {}),
         now
-    );
+    ]);
 
-    return getSubmissionById(subId);
+    return await getSubmissionById(subId);
 }
 
-function getSubmissionById(id) {
-    const row = db.prepare('SELECT * FROM submissions WHERE id = ?').get(id);
+async function getSubmissionById(id) {
+    const row = await queryOne('SELECT * FROM submissions WHERE id = ?', [id]);
     if (!row) return null;
     return {
         id: row.id,
@@ -526,14 +648,14 @@ function getSubmissionById(id) {
         phone: row.phone,
         learnerName: row.learner_name,
         score: row.score,
-        scorePercentage: row.score_percentage,
-        details: JSON.parse(row.details_json || '[]'),
-        profile: JSON.parse(row.profile_json || '{}'),
+        scorePercentage: parseFloat(row.score_percentage || 0),
+        details: typeof row.details_json === 'string' ? JSON.parse(row.details_json || '[]') : (row.details_json || []),
+        profile: typeof row.profile_json === 'string' ? JSON.parse(row.profile_json || '{}') : (row.profile_json || {}),
         createdAt: row.created_at
     };
 }
 
-function getSubmissions(courseId = null, phone = null) {
+async function getSubmissions(courseId = null, phone = null) {
     let query = 'SELECT * FROM submissions WHERE 1=1';
     const params = [];
 
@@ -547,95 +669,95 @@ function getSubmissions(courseId = null, phone = null) {
     }
     query += ' ORDER BY created_at DESC';
 
-    const rows = db.prepare(query).all(...params);
+    const rows = await queryAll(query, params);
     return rows.map(row => ({
         id: row.id,
         courseId: row.course_id,
         phone: row.phone,
         learnerName: row.learner_name,
         score: row.score,
-        scorePercentage: row.score_percentage,
-        details: JSON.parse(row.details_json || '[]'),
-        profile: JSON.parse(row.profile_json || '{}'),
+        scorePercentage: parseFloat(row.score_percentage || 0),
+        details: typeof row.details_json === 'string' ? JSON.parse(row.details_json || '[]') : (row.details_json || []),
+        profile: typeof row.profile_json === 'string' ? JSON.parse(row.profile_json || '{}') : (row.profile_json || {}),
         createdAt: row.created_at
     }));
 }
 
-function saveCumulativeAnalysis(phone, profile, testsCount) {
+async function saveCumulativeAnalysis(phone, profile, testsCount) {
     const now = new Date().toISOString();
-    db.prepare(`
+    await execute(`
         INSERT INTO cumulative_analyses (phone, profile_json, tests_analyzed, updated_at)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(phone) DO UPDATE SET
             profile_json = excluded.profile_json,
             tests_analyzed = excluded.tests_analyzed,
             updated_at = excluded.updated_at
-    `).run(phone, JSON.stringify(profile), testsCount, now);
+    `, [phone, JSON.stringify(profile), testsCount, now]);
 
-    return getCumulativeAnalysis(phone);
+    return await getCumulativeAnalysis(phone);
 }
 
-function getCumulativeAnalysis(phone) {
-    const row = db.prepare('SELECT * FROM cumulative_analyses WHERE phone = ?').get(phone);
+async function getCumulativeAnalysis(phone) {
+    const row = await queryOne('SELECT * FROM cumulative_analyses WHERE phone = ?', [phone]);
     if (!row) return null;
     return {
         phone: row.phone,
-        profile: JSON.parse(row.profile_json || '{}'),
-        testsAnalyzed: row.tests_analyzed,
+        profile: typeof row.profile_json === 'string' ? JSON.parse(row.profile_json || '{}') : (row.profile_json || {}),
+        testsAnalyzed: parseInt(row.tests_analyzed || '0', 10),
         updatedAt: row.updated_at
     };
 }
 
-function deleteCourse(courseId) {
-    db.prepare('DELETE FROM submissions WHERE course_id = ?').run(courseId);
-    db.prepare('DELETE FROM mcqs WHERE course_id = ?').run(courseId);
-    const result = db.prepare('DELETE FROM courses WHERE course_id = ?').run(courseId);
-    return result.changes > 0;
+async function deleteCourse(courseId) {
+    await execute('DELETE FROM submissions WHERE course_id = ?', [courseId]);
+    await execute('DELETE FROM mcqs WHERE course_id = ?', [courseId]);
+    const res = await execute('DELETE FROM courses WHERE course_id = ?', [courseId]);
+    return res.changes > 0;
 }
 
 // ==========================================
 // Case Studies Management (Amrit Gyaan Kosh)
 // ==========================================
 
-function getAllCaseStudies(includeUnpublished = false) {
+async function getAllCaseStudies(includeUnpublished = false) {
     let sql = 'SELECT * FROM case_studies';
     if (!includeUnpublished) {
         sql += " WHERE status = 'published' OR status IS NULL";
     }
     sql += ' ORDER BY created_at DESC';
-    const rows = db.prepare(sql).all();
+    const rows = await queryAll(sql);
     return rows.map(r => ({
         id: r.id,
         title: r.title,
         author: r.author || 'Capacity Building Commission',
-        categories: r.categories_json ? JSON.parse(r.categories_json) : ['Governance'],
+        categories: r.categories_json ? (typeof r.categories_json === 'string' ? JSON.parse(r.categories_json) : r.categories_json) : ['Governance'],
         duration: r.duration || '1h',
         summary: r.summary || '',
-        lessons: r.lessons_json ? JSON.parse(r.lessons_json) : [],
+        lessons: r.lessons_json ? (typeof r.lessons_json === 'string' ? JSON.parse(r.lessons_json) : r.lessons_json) : [],
         status: r.status || 'published',
         createdAt: r.created_at,
         updatedAt: r.updated_at
     }));
 }
 
-function getCaseStudy(id) {
-    const r = db.prepare('SELECT * FROM case_studies WHERE id = ?').get(id);
+async function getCaseStudy(id) {
+    const r = await queryOne('SELECT * FROM case_studies WHERE id = ?', [id]);
     if (!r) return null;
     return {
         id: r.id,
         title: r.title,
         author: r.author || 'Capacity Building Commission',
-        categories: r.categories_json ? JSON.parse(r.categories_json) : ['Governance'],
+        categories: r.categories_json ? (typeof r.categories_json === 'string' ? JSON.parse(r.categories_json) : r.categories_json) : ['Governance'],
         duration: r.duration || '1h',
         summary: r.summary || '',
-        lessons: r.lessons_json ? JSON.parse(r.lessons_json) : [],
+        lessons: r.lessons_json ? (typeof r.lessons_json === 'string' ? JSON.parse(r.lessons_json) : r.lessons_json) : [],
         status: r.status || 'published',
         createdAt: r.created_at,
         updatedAt: r.updated_at
     };
 }
 
-function saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status = 'published' }) {
+async function saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status = 'published' }) {
     const now = new Date().toISOString();
     const caseId = id ? id.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_') : 'cs_' + Date.now();
     
@@ -655,13 +777,13 @@ function saveCaseStudy({ id, title, author, categories, duration, summary, lesso
     }
     const lessonsJson = JSON.stringify(lessonsArray);
 
-    const existing = getCaseStudy(caseId);
+    const existing = await getCaseStudy(caseId);
     if (existing) {
-        db.prepare(`
+        await execute(`
             UPDATE case_studies 
             SET title = ?, author = ?, categories_json = ?, duration = ?, summary = ?, lessons_json = ?, status = ?, updated_at = ?
             WHERE id = ?
-        `).run(
+        `, [
             title || existing.title,
             author || existing.author || 'Capacity Building Commission',
             categoriesJson,
@@ -671,12 +793,12 @@ function saveCaseStudy({ id, title, author, categories, duration, summary, lesso
             status || existing.status || 'published',
             now,
             caseId
-        );
+        ]);
     } else {
-        db.prepare(`
+        await execute(`
             INSERT INTO case_studies (id, title, author, categories_json, duration, summary, lessons_json, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `, [
             caseId,
             title || 'Untitled Case Study',
             author || 'Capacity Building Commission',
@@ -687,26 +809,49 @@ function saveCaseStudy({ id, title, author, categories, duration, summary, lesso
             status || 'published',
             now,
             now
-        );
+        ]);
     }
-    return getCaseStudy(caseId);
+    return await getCaseStudy(caseId);
 }
 
-function deleteCaseStudy(id) {
-    const res = db.prepare('DELETE FROM case_studies WHERE id = ?').run(id);
+async function deleteCaseStudy(id) {
+    const res = await execute('DELETE FROM case_studies WHERE id = ?', [id]);
     return res.changes > 0;
 }
 
 // Database stats for Admin Dashboard
-function getDatabaseStats() {
+async function getDatabaseStats() {
+    await ensureInitialized();
+    const coursesCount = parseInt((await rawQueryOne('SELECT COUNT(*) as c FROM courses'))?.c || '0', 10);
+    const caseStudiesCount = parseInt((await rawQueryOne('SELECT COUNT(*) as c FROM case_studies'))?.c || '0', 10);
+    const mcqsCount = parseInt((await rawQueryOne('SELECT COUNT(*) as c FROM mcqs'))?.c || '0', 10);
+    const submissionsCount = parseInt((await rawQueryOne('SELECT COUNT(*) as c FROM submissions'))?.c || '0', 10);
+    const usersCount = parseInt((await rawQueryOne('SELECT COUNT(*) as c FROM users'))?.c || '0', 10);
+    const adminsCount = parseInt((await rawQueryOne('SELECT COUNT(*) as c FROM admins'))?.c || '0', 10);
+
+    let providerInfo = 'SQLite (Local File)';
+    let dbLocation = DB_PATH;
+
+    if (isPg) {
+        try {
+            const parsed = new URL(connectionString);
+            providerInfo = `PostgreSQL (Render Cloud - ${parsed.hostname})`;
+            dbLocation = `Database: ${parsed.pathname.replace('/', '')}`;
+        } catch (_) {
+            providerInfo = 'PostgreSQL (Render Cloud)';
+            dbLocation = 'Render Cloud Managed DB';
+        }
+    }
+
     return {
-        coursesCount: db.prepare('SELECT COUNT(*) as c FROM courses').get().c,
-        caseStudiesCount: db.prepare('SELECT COUNT(*) as c FROM case_studies').get().c,
-        mcqsCount: db.prepare('SELECT COUNT(*) as c FROM mcqs').get().c,
-        submissionsCount: db.prepare('SELECT COUNT(*) as c FROM submissions').get().c,
-        usersCount: db.prepare('SELECT COUNT(*) as c FROM users').get().c,
-        adminsCount: db.prepare('SELECT COUNT(*) as c FROM admins').get().c,
-        dbPath: DB_PATH
+        provider: providerInfo,
+        coursesCount,
+        caseStudiesCount,
+        mcqsCount,
+        submissionsCount,
+        usersCount,
+        adminsCount,
+        dbPath: dbLocation
     };
 }
 

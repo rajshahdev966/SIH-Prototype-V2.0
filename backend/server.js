@@ -19,19 +19,24 @@ app.use(express.json({ limit: '10mb' }));
 // Security Middleware: Strict Admin Auth
 // ==========================================
 
-function requireAdminAuth(req, res, next) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Admin authentication token required' });
-    }
+async function requireAdminAuth(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Admin authentication token required' });
+        }
 
-    const admin = db.validateAdminSession(authHeader);
-    if (!admin) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or expired admin session. Please log in again.' });
-    }
+        const admin = await db.validateAdminSession(authHeader);
+        if (!admin) {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or expired admin session. Please log in again.' });
+        }
 
-    req.admin = admin;
-    next();
+        req.admin = admin;
+        next();
+    } catch (err) {
+        console.error('[Admin Auth Error]:', err.message);
+        res.status(500).json({ success: false, error: 'Internal authentication error' });
+    }
 }
 
 // ==========================================
@@ -39,19 +44,19 @@ function requireAdminAuth(req, res, next) {
 // ==========================================
 
 // Admin Login
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) {
             return res.status(400).json({ success: false, error: 'Username and password are required' });
         }
 
-        const admin = db.verifyAdminCredentials(username, password);
+        const admin = await db.verifyAdminCredentials(username, password);
         if (!admin) {
             return res.status(401).json({ success: false, error: 'Invalid administrative credentials' });
         }
 
-        const token = db.createAdminSession(admin.username);
+        const token = await db.createAdminSession(admin.username);
         console.log(`[Admin Security] Admin "${admin.username}" authenticated successfully.`);
 
         res.json({
@@ -74,10 +79,10 @@ app.get('/api/admin/me', requireAdminAuth, (req, res) => {
 });
 
 // Admin Update Own Profile (Email / Password)
-app.put('/api/admin/profile', requireAdminAuth, (req, res) => {
+app.put('/api/admin/profile', requireAdminAuth, async (req, res) => {
     try {
         const { email, password } = req.body;
-        const updated = db.updateAdminProfile(req.admin.username, { email, password });
+        const updated = await db.updateAdminProfile(req.admin.username, { email, password });
         console.log(`[Admin Security] Admin "${req.admin.username}" updated credentials.`);
         res.json({ success: true, admin: updated });
     } catch (error) {
@@ -86,10 +91,10 @@ app.put('/api/admin/profile', requireAdminAuth, (req, res) => {
 });
 
 // Admin Create Another Admin
-app.post('/api/admin/create-admin', requireAdminAuth, (req, res) => {
+app.post('/api/admin/create-admin', requireAdminAuth, async (req, res) => {
     try {
         const { username, email, password } = req.body;
-        const newAdmin = db.createNewAdmin({ username, email, password });
+        const newAdmin = await db.createNewAdmin({ username, email, password });
         console.log(`[Admin Security] New admin created: "${username}" by "${req.admin.username}"`);
         res.json({ success: true, admin: newAdmin });
     } catch (error) {
@@ -98,9 +103,9 @@ app.post('/api/admin/create-admin', requireAdminAuth, (req, res) => {
 });
 
 // Admin List All Admins
-app.get('/api/admin/list', requireAdminAuth, (req, res) => {
+app.get('/api/admin/list', requireAdminAuth, async (req, res) => {
     try {
-        const admins = db.getAllAdmins();
+        const admins = await db.getAllAdmins();
         res.json({ success: true, admins });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -108,16 +113,20 @@ app.get('/api/admin/list', requireAdminAuth, (req, res) => {
 });
 
 // Admin Logout
-app.post('/api/admin/logout', (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader) db.revokeAdminSession(authHeader);
-    res.json({ success: true, message: 'Logged out successfully' });
+app.post('/api/admin/logout', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (authHeader) await db.revokeAdminSession(authHeader);
+        res.json({ success: true, message: 'Logged out successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // Admin Database & System Overview
-app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
+app.get('/api/admin/stats', requireAdminAuth, async (req, res) => {
     try {
-        const stats = db.getDatabaseStats();
+        const stats = await db.getDatabaseStats();
         res.json({ success: true, stats });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -134,8 +143,8 @@ app.post('/api/courses/ingest', requireAdminAuth, async (req, res) => {
         const { courseId } = req.body;
         if (!courseId) return res.status(400).json({ error: 'courseId is required' });
 
-        const existingCourse = db.getCourse(courseId);
-        const existingMCQs = db.getMCQs(courseId);
+        const existingCourse = await db.getCourse(courseId);
+        const existingMCQs = await db.getMCQs(courseId);
 
         if (existingCourse && existingMCQs && existingMCQs.length > 0) {
             console.log(`[Cache Hit] Course ${courseId} already in DB.`);
@@ -157,7 +166,7 @@ app.post('/api/courses/ingest', requireAdminAuth, async (req, res) => {
         const courseTitle = extractResult.courseTitle || courseId;
         const masterSummary = extractResult.masterSummary;
 
-        db.saveCourse({
+        await db.saveCourse({
             courseId: courseId,
             title: courseTitle,
             masterSummary: masterSummary,
@@ -165,7 +174,7 @@ app.post('/api/courses/ingest', requireAdminAuth, async (req, res) => {
         });
 
         const mcqs = await generateMCQs(masterSummary);
-        db.saveMCQs(courseId, mcqs);
+        await db.saveMCQs(courseId, mcqs);
 
         console.log(`[Ingest] Ingested and stored ${courseId} (${mcqs.length} MCQs)`);
 
@@ -187,12 +196,12 @@ app.post('/api/courses/ingest', requireAdminAuth, async (req, res) => {
 });
 
 // Admin Live Editor: Update Title, Summary, MCQs, and Status (Requires Admin Auth)
-app.put('/api/admin/courses/:courseId', requireAdminAuth, (req, res) => {
+app.put('/api/admin/courses/:courseId', requireAdminAuth, async (req, res) => {
     try {
         const { courseId } = req.params;
         const { title, author, category, duration, masterSummary, mcqs, status } = req.body;
 
-        const updated = db.updateCourseAndMCQs(courseId, {
+        const updated = await db.updateCourseAndMCQs(courseId, {
             title: title || courseId,
             author,
             category,
@@ -211,10 +220,10 @@ app.put('/api/admin/courses/:courseId', requireAdminAuth, (req, res) => {
 });
 
 // Delete Course (Requires Admin Auth)
-app.delete('/api/courses/:courseId', requireAdminAuth, (req, res) => {
+app.delete('/api/courses/:courseId', requireAdminAuth, async (req, res) => {
     try {
         const { courseId } = req.params;
-        const deleted = db.deleteCourse(courseId);
+        const deleted = await db.deleteCourse(courseId);
         console.log(`[Admin] Course ${courseId} deleted by "${req.admin.username}".`);
         res.json({ success: true, deleted });
     } catch (error) {
@@ -228,14 +237,14 @@ app.delete('/api/courses/:courseId', requireAdminAuth, (req, res) => {
 // ==========================================
 
 // Learner Login / Register (Phone, Name, Email)
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
     try {
         const { phone, name, email } = req.body;
         if (!phone || !phone.trim()) {
             return res.status(400).json({ success: false, error: 'Phone number is required' });
         }
 
-        const user = db.findOrCreateUser({
+        const user = await db.findOrCreateUser({
             phone: phone.trim(),
             name: name ? name.trim() : 'Civil Servant Learner',
             email: email ? email.trim() : ''
@@ -249,16 +258,16 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Learner Profile & Test History
-app.get('/api/user/:phone/profile', (req, res) => {
+app.get('/api/user/:phone/profile', async (req, res) => {
     try {
         const { phone } = req.params;
-        const user = db.getUser(phone);
+        const user = await db.getUser(phone);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
 
-        const submissions = db.getSubmissions(null, phone);
-        const cumulativeAnalysis = db.getCumulativeAnalysis(phone);
+        const submissions = await db.getSubmissions(null, phone);
+        const cumulativeAnalysis = await db.getCumulativeAnalysis(phone);
 
         res.json({
             success: true,
@@ -276,16 +285,16 @@ app.get('/api/user/:phone/profile', (req, res) => {
 app.post('/api/user/:phone/cumulative-analysis', async (req, res) => {
     try {
         const { phone } = req.params;
-        const user = db.getUser(phone);
+        const user = await db.getUser(phone);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
 
-        const submissions = db.getSubmissions(null, phone);
+        const submissions = await db.getSubmissions(null, phone);
         console.log(`[Cumulative Agent] Analyzing ${submissions.length} tests for ${user.name}...`);
 
         const profile = await analyzeCumulativeProfile(submissions, user);
-        const saved = db.saveCumulativeAnalysis(phone, profile, submissions.length);
+        const saved = await db.saveCumulativeAnalysis(phone, profile, submissions.length);
 
         res.json({
             success: true,
@@ -299,11 +308,11 @@ app.post('/api/user/:phone/cumulative-analysis', async (req, res) => {
 });
 
 // Public Case Studies Endpoint (Returns published case studies from DB)
-app.get('/api/case-studies', (req, res) => {
+app.get('/api/case-studies', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
-        const isAdmin = authHeader && !!db.validateAdminSession(authHeader);
-        const caseStudies = db.getAllCaseStudies(isAdmin);
+        const isAdmin = authHeader && !!(await db.validateAdminSession(authHeader));
+        const caseStudies = await db.getAllCaseStudies(isAdmin);
         res.json({ success: true, caseStudies });
     } catch (error) {
         console.error('[API] Error fetching case studies:', error.message);
@@ -312,10 +321,10 @@ app.get('/api/case-studies', (req, res) => {
 });
 
 // Single Case Study Detail Endpoint
-app.get('/api/case-studies/:id', (req, res) => {
+app.get('/api/case-studies/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const caseStudy = db.getCaseStudy(id);
+        const caseStudy = await db.getCaseStudy(id);
         if (!caseStudy) {
             return res.status(404).json({ success: false, error: 'Case study not found' });
         }
@@ -326,13 +335,13 @@ app.get('/api/case-studies/:id', (req, res) => {
 });
 
 // Admin Create Case Study
-app.post('/api/admin/case-studies', requireAdminAuth, (req, res) => {
+app.post('/api/admin/case-studies', requireAdminAuth, async (req, res) => {
     try {
         const { id, title, author, categories, duration, summary, lessons, status } = req.body;
         if (!title || !title.trim()) {
             return res.status(400).json({ success: false, error: 'Title is required' });
         }
-        const created = db.saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status });
+        const created = await db.saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status });
         console.log(`[Admin] Case study "${created.id}" created by "${req.admin.username}".`);
         res.json({ success: true, caseStudy: created });
     } catch (error) {
@@ -342,11 +351,11 @@ app.post('/api/admin/case-studies', requireAdminAuth, (req, res) => {
 });
 
 // Admin Update Case Study
-app.put('/api/admin/case-studies/:id', requireAdminAuth, (req, res) => {
+app.put('/api/admin/case-studies/:id', requireAdminAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const { title, author, categories, duration, summary, lessons, status } = req.body;
-        const updated = db.saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status });
+        const updated = await db.saveCaseStudy({ id, title, author, categories, duration, summary, lessons, status });
         console.log(`[Admin] Case study "${id}" updated by "${req.admin.username}".`);
         res.json({ success: true, caseStudy: updated });
     } catch (error) {
@@ -356,10 +365,10 @@ app.put('/api/admin/case-studies/:id', requireAdminAuth, (req, res) => {
 });
 
 // Admin Delete Case Study
-app.delete('/api/admin/case-studies/:id', requireAdminAuth, (req, res) => {
+app.delete('/api/admin/case-studies/:id', requireAdminAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = db.deleteCaseStudy(id);
+        const deleted = await db.deleteCaseStudy(id);
         console.log(`[Admin] Case study "${id}" deleted by "${req.admin.username}".`);
         res.json({ success: true, deleted });
     } catch (error) {
@@ -369,12 +378,11 @@ app.delete('/api/admin/case-studies/:id', requireAdminAuth, (req, res) => {
 });
 
 // Public Course Catalog (Only returns published courses)
-app.get('/api/courses', (req, res) => {
+app.get('/api/courses', async (req, res) => {
     try {
-        // Only return all if valid admin session is provided
         const authHeader = req.headers.authorization;
-        const isAdmin = authHeader && !!db.validateAdminSession(authHeader);
-        const courses = db.getAllCourses(isAdmin);
+        const isAdmin = authHeader && !!(await db.validateAdminSession(authHeader));
+        const courses = await db.getAllCourses(isAdmin);
         res.json({ success: true, courses });
     } catch (error) {
         console.error('[API] Error fetching courses:', error.message);
@@ -383,15 +391,15 @@ app.get('/api/courses', (req, res) => {
 });
 
 // Public Course Detail (Summary & MCQs)
-app.get('/api/courses/:courseId', (req, res) => {
+app.get('/api/courses/:courseId', async (req, res) => {
     try {
         const { courseId } = req.params;
-        const course = db.getCourse(courseId);
+        const course = await db.getCourse(courseId);
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
-        const mcqs = db.getMCQs(courseId) || [];
-        const submissions = db.getSubmissions(courseId);
+        const mcqs = (await db.getMCQs(courseId)) || [];
+        const submissions = await db.getSubmissions(courseId);
 
         res.json({
             success: true,
@@ -428,7 +436,7 @@ app.post('/api/courses/:courseId/submit', async (req, res) => {
 
         const profile = await analyzeResults(analysisPayload);
 
-        const savedSubmission = db.saveSubmission({
+        const savedSubmission = await db.saveSubmission({
             courseId,
             phone: phone || null,
             learnerName: learnerName || 'Civil Servant Learner',
@@ -440,10 +448,10 @@ app.post('/api/courses/:courseId/submit', async (req, res) => {
         if (phone) {
             setTimeout(async () => {
                 try {
-                    const user = db.getUser(phone);
-                    const allSubs = db.getSubmissions(null, phone);
+                    const user = await db.getUser(phone);
+                    const allSubs = await db.getSubmissions(null, phone);
                     const cumulative = await analyzeCumulativeProfile(allSubs, user);
-                    db.saveCumulativeAnalysis(phone, cumulative, allSubs.length);
+                    await db.saveCumulativeAnalysis(phone, cumulative, allSubs.length);
                 } catch (e) {
                     console.warn(`[Cumulative Background Update]`, e.message);
                 }
