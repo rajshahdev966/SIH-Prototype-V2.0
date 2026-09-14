@@ -23,15 +23,15 @@ const DeveloperFooter = () => {
           </div>
           
           {/* Contribution Notice */}
-          <p className="text-[10px] text-slate-400 font-normal leading-tight italic">
-            Note: My other teammates have contributed literally zero to the development of this product. I have only developed this product.
+          <p className="text-[10px] text-slate-400 font-normal leading-tight italic text-wrap">
+            Development and technical implementation of this prototype were led and carried out by Raj Shah, with the project developed as part of our team participation in Smart India Hackathon.
           </p>
         </div>
 
         {/* Social Profile Links */}
         <div className="flex items-center gap-2.5 shrink-0">
           <a
-            href="https://www.linkedin.com/in/"
+            href="https://www.linkedin.com/in/rajshah-dev/"
             target="_blank"
             rel="noopener noreferrer"
             title="Raj Shah on LinkedIn (Click to view profile)"
