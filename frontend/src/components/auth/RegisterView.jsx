@@ -88,7 +88,7 @@ const RegisterView = ({ onSuccess, onSwitchToLogin, onGoHome, initialEmail = '' 
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={onSwitchToLogin}
+                onClick={()=> navigate("/login")}
                 className="text-xl text-slate-700 hover:text-slate-900 cursor-pointer font-bold p-1 rounded-lg hover:bg-slate-100"
                 title="Back to Sign In"
               >
