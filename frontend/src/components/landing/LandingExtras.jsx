@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import igotLogo from '../../assets/igotLogo.svg';
 import {
   RiGraduationCapLine,
   RiBriefcaseLine,
@@ -100,9 +101,8 @@ const LandingExtras = () => {
           <div className="lg:col-span-6 flex justify-center">
             <div className="relative w-80 h-80 sm:w-96 sm:h-96 rounded-full bg-gradient-to-tr from-orange-50/50 via-white to-blue-50/50 border border-orange-200/60 p-8 flex items-center justify-center shadow-inner">
               {/* Central Glowing Emblem */}
-              <div className="w-24 h-24 rounded-full bg-white shadow-lg border-2 border-orange-300 flex flex-col items-center justify-center p-2 text-center z-10">
-                <RiFlowerLine className="text-[#F37023] mb-0.5" size={26} />
-                <span className="text-[10px] font-black text-[#F37023] font-hindi">कर्मयोगी</span>
+              <div className="w-24 h-24 rounded-full bg-white shadow-lg border-2 border-orange-300 flex items-center justify-center p-2 text-center z-10 overflow-hidden">
+                <img src={igotLogo} alt="iGOT Karmayogi" className="w-20 h-auto max-h-16 object-contain" />
               </div>
 
               {/* Orbiting Satellite Nodes */}

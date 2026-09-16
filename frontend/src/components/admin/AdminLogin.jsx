@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { RiAlertLine, RiCloseLine } from '@remixicon/react';
 import { API_BASE_URL } from '../../config';
+import igotLogo from '../../assets/igotLogo.svg';
 
 const AdminLogin = ({ onLoginSuccess, onGoHome }) => {
   const [username, setUsername] = useState('admin');
@@ -44,11 +45,15 @@ const AdminLogin = ({ onLoginSuccess, onGoHome }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl space-y-6">
-        {/* Karmayogi Bharat Admin Emblem Header */}
+        {/* Karmayogi Bharat Official Logo */}
         <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-2xl font-black text-[#F37023] font-hindi">कर्मयोगी</span>
-            <span className="text-2xl font-black text-[#0B5C9E] font-hindi">भारत</span>
+          <div className="flex justify-center mb-2">
+            <img
+              src={igotLogo}
+              alt="iGOT Karmayogi Bharat"
+              className="h-14 sm:h-16 w-auto max-w-[270px] object-contain cursor-pointer"
+              onClick={onGoHome}
+            />
           </div>
 
           <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-[#0B5C9E] bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">

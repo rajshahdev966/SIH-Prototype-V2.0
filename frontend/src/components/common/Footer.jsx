@@ -1,4 +1,5 @@
 import React from 'react';
+import igotLogo from '../../assets/igotLogo.svg';
 
 const Footer = () => {
   return (
@@ -6,9 +7,12 @@ const Footer = () => {
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-xs">
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold text-[#F37023] font-hindi">कर्मयोगी</span>
-              <span className="text-xl font-bold text-white font-hindi">भारत</span>
+            <div className="inline-block bg-white px-3 py-1.5 rounded-xl shadow-xs">
+              <img
+                src={igotLogo}
+                alt="iGOT Karmayogi Bharat"
+                className="h-9 w-auto max-w-[190px] object-contain"
+              />
             </div>
             <p className="text-slate-400 leading-relaxed">
               Karmayogi Bharat is a Special Purpose Vehicle (SPV) under the Department of Personnel and Training (DoPT), Government of India.

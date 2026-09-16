@@ -32,7 +32,7 @@ const DeveloperFooter = () => {
         <div className="flex items-center gap-2.5 shrink-0">
           <a
             href="https://www.linkedin.com/in/rajshah-dev/"
-            target="_blank"
+            target="_blank" 
             rel="noopener noreferrer"
             title="Raj Shah on LinkedIn (Click to view profile)"
             aria-label="Raj Shah LinkedIn Profile"

@@ -1,5 +1,6 @@
 import React from 'react';
 import { RiLogoutBoxRLine, RiBarChart2Line } from '@remixicon/react';
+import igotLogo from '../../assets/igotLogo.svg';
 
 const Navbar = ({
   currentUser,
@@ -13,32 +14,13 @@ const Navbar = ({
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-        {/* Karmayogi Bharat Official Emblem & Logo */}
-        <div className="flex items-center gap-4 cursor-pointer select-none" onClick={onGoHome}>
-          <div className="flex items-center gap-3">
-            {/* National Lotus Emblem SVG */}
-            <div className="w-12 h-12 flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-full h-full" fill="none">
-                <path d="M50 15 C45 35 25 45 15 50 C25 55 45 65 50 85 C55 65 75 55 85 50 C75 45 55 35 50 15 Z" fill="#F37023" />
-                <path d="M50 25 C47 40 32 48 25 50 C32 52 47 60 50 75 C53 60 68 52 75 50 C68 48 53 40 50 25 Z" fill="#0B5C9E" />
-                <circle cx="50" cy="50" r="10" fill="#FFFFFF" />
-                <circle cx="50" cy="50" r="6" fill="#F37023" />
-              </svg>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl sm:text-2xl font-extrabold text-[#F37023] tracking-tight font-hindi">
-                  कर्मयोगी
-                </span>
-                <span className="text-xl sm:text-2xl font-extrabold text-[#0B5C9E] tracking-tight font-hindi">
-                  भारत
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase font-hindi">
-                — लोकहितं मम करणीयम् —
-              </p>
-            </div>
-          </div>
+        {/* Karmayogi Bharat Official Logo */}
+        <div className="flex items-center cursor-pointer select-none py-1" onClick={onGoHome}>
+          <img
+            src={igotLogo}
+            alt="iGOT Karmayogi Bharat"
+            className="h-12 sm:h-14 w-auto max-w-[240px] sm:max-w-[280px] object-contain"
+          />
         </div>
 
         {/* Official Navigation Links (Desktop) */}

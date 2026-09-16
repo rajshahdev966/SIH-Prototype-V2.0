@@ -9,6 +9,7 @@ import {
   RiEyeOffLine
 } from '@remixicon/react';
 import { learnerApi } from '../../api';
+import igotLogo from '../../assets/igotLogo.svg';
 
 const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice, initialEmail = '' }) => {
   const [email, setEmail] = useState(initialEmail);
@@ -102,16 +103,17 @@ const LoginView = ({ onSuccess, onSwitchToRegister, onGoHome, intendedNotice, in
           </div>
 
           <div className="max-w-md w-full mx-auto space-y-6">
-            {/* Karmayogi Bharat Emblem */}
-            <div className="text-center space-y-1">
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-2xl font-black text-[#F37023] font-hindi">कर्मयोगी</span>
-                <span className="text-2xl font-black text-[#0B5C9E] font-hindi">भारत</span>
+            {/* Karmayogi Bharat Official Logo */}
+            <div className="text-center space-y-2">
+              <div className="flex justify-center mb-1">
+                <img
+                  src={igotLogo}
+                  alt="iGOT Karmayogi Bharat"
+                  className="h-14 sm:h-16 w-auto max-w-[270px] object-contain cursor-pointer"
+                  onClick={onGoHome}
+                />
               </div>
-              <p className="text-[11px] font-semibold text-slate-500 font-hindi">
-                — लोकहितं मम करणीयम् —
-              </p>
-              <h1 className="text-lg font-bold text-slate-800 pt-2">
+              <h1 className="text-lg font-bold text-slate-800 pt-1">
                 Civil Servant Sign In
               </h1>
               <p className="text-xs text-slate-500">
