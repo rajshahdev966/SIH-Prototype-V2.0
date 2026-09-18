@@ -283,34 +283,36 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// Learner Login (Strict: Email & Password)
+// Learner Login (Strict: Email & Password, resilient with phone fallback)
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password, phone, name } = req.body;
-        
-        // If name is provided along with email and password, treat as register/login dual-flow
-        if (name && name.trim() && email && password) {
+        const loginIdentifier = (email || phone || '').trim();
+        const userPassword = (password || '').trim();
+
+        // If name is provided along with identifier and password, treat as register/login dual-flow
+        if (name && name.trim() && loginIdentifier && userPassword) {
             try {
-                const user = await db.registerUser({ email, password, name });
+                const user = await db.registerUser({ email: loginIdentifier, password: userPassword, name });
                 console.log(`[Learner Auth] Registered via /login endpoint: "${user.name}" (${user.email})`);
                 return res.json({ success: true, user });
             } catch (regErr) {
                 if (regErr.code === 'EMAIL_ALREADY_EXISTS') {
-                    const user = await db.verifyUserCredentials(email, password);
+                    const user = await db.verifyUserCredentials(loginIdentifier, userPassword);
                     return res.json({ success: true, user });
                 }
                 throw regErr;
             }
         }
 
-        // Strict email & password login flow
-        if (email && password) {
-            const user = await db.verifyUserCredentials(email, password);
+        // Strict email/identifier & password login flow
+        if (loginIdentifier && userPassword) {
+            const user = await db.verifyUserCredentials(loginIdentifier, userPassword);
             console.log(`[Learner Auth] Learner "${user.name}" logged in successfully.`);
             return res.json({ success: true, user });
         }
 
-        // Backward compatibility fallback for legacy tests if phone passed
+        // Backward compatibility fallback for legacy tests if only phone passed without password
         if (phone && phone.trim()) {
             const user = await db.findOrCreateUser({
                 phone: phone.trim(),
@@ -320,10 +322,10 @@ app.post('/api/auth/login', async (req, res) => {
             return res.json({ success: true, user });
         }
 
-        if (!email || !email.trim()) {
+        if (!loginIdentifier) {
             return res.status(400).json({ success: false, code: 'MISSING_EMAIL', error: 'Email address is required' });
         }
-        if (!password || !password.trim()) {
+        if (!userPassword) {
             return res.status(400).json({ success: false, code: 'MISSING_PASSWORD', error: 'Password is required' });
         }
     } catch (error) {
