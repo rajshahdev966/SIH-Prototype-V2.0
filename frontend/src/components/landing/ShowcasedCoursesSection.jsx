@@ -46,13 +46,13 @@ const ShowcasedCoursesSection = ({ courses = [], onReadSummary, onTakeQuiz, curr
               Curated official capacity building modules active in the national governance database
             </p>
           </div>
-          <button
+          {/* <button
             onClick={() => handleAction('catalog', null)}
             className="text-xs sm:text-sm font-bold text-[#0B5C9E] hover:underline cursor-pointer flex items-center gap-1 shrink-0"
           >
             <span>Show all ({courses.length})</span>
             <span>&gt;</span>
-          </button>
+          </button> */}
         </div>
 
         {/* Carousel Navigation Arrows - only shown if more than 4 courses */}
